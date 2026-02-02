@@ -2,26 +2,26 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>豪華平板版：積木大挑戰</title>
+    <title>俄羅斯積木：精準定位版</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { 
             background: #2c3e50; color: white; text-align: center; 
             font-family: sans-serif; margin: 0; overflow: hidden; 
-            touch-action: none; /* 重要：防止整個網頁被拖動 */
+            touch-action: none; 
         }
-        #score { font-size: 32px; margin: 20px; color: #f1c40f; font-weight: bold; }
+        #score { font-size: 32px; margin: 15px; color: #f1c40f; font-weight: bold; text-shadow: 2px 2px #000; }
         #game-container { 
             position: relative; display: inline-block; background: #34495e; 
-            padding: 10px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            padding: 8px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        canvas { display: block; background: #2c3e50; border-radius: 10px; }
+        canvas { display: block; background: #2c3e50; border-radius: 8px; }
         #dock { 
             display: flex; justify-content: space-around; align-items: center; 
-            margin-top: 30px; height: 180px; background: rgba(0,0,0,0.3); padding: 15px;
+            margin-top: 20px; height: 160px; background: rgba(0,0,0,0.3);
         }
-        .piece-canvas { background: transparent; cursor: grab; touch-action: none; }
-        #hint { font-size: 18px; margin-top: 15px; color: #bdc3c7; }
+        .piece-canvas { background: transparent; touch-action: none; }
+        #hint { font-size: 16px; margin-top: 10px; color: #bdc3c7; }
     </style>
 </head>
 <body>
@@ -31,12 +31,12 @@
         <canvas id="mainBoard"></canvas>
     </div>
 
-    <div id="hint">點擊旋轉 🔄 拖拉放入格子</div>
+    <div id="hint">點擊方塊旋轉 🔄 拖拉進入格子</div>
 
     <div id="dock">
-        <canvas id="piece0" class="piece-canvas"></canvas>
-        <canvas id="piece1" class="piece-canvas"></canvas>
-        <canvas id="piece2" class="piece-canvas"></canvas>
+        <canvas id="piece0" class="piece-canvas" onclick="rotatePiece(0)"></canvas>
+        <canvas id="piece1" class="piece-canvas" onclick="rotatePiece(1)"></canvas>
+        <canvas id="piece2" class="piece-canvas" onclick="rotatePiece(2)"></canvas>
     </div>
 
     <script>
@@ -50,21 +50,18 @@
         
         const PIECES = [
             [[1, 1, 1, 1]], [[1, 1], [1, 1]], [[0, 1, 0], [1, 1, 1]], 
-            [[1, 1, 0], [0, 1, 1]], [[1, 0], [1, 0], [1, 1]], [[1], [1], [1]]
+            [[1, 1, 0], [0, 1, 1]], [[1, 0], [1, 0], [1, 1]], [[1], [1], [1]],
+            [[1, 1, 1], [0, 1, 0], [0, 1, 0]]
         ];
-        const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138'];
+        const COLORS = [null, '#FF4757', '#2ED573', '#1E90FF', '#ECCC68', '#FFA502', '#70A1FF', '#A29BFE'];
 
         let dockPieces = [null, null, null];
         let draggingPiece = null;
-        let dragPos = { x: 0, y: 0 };
+        let currentDropPos = null; // 用於儲存預覽定位
 
         function resizeGame() {
-            // 根據平板寬度調整格子大小
-            const padding = 40;
-            const availableWidth = window.innerWidth - padding;
-            BLOCK_SIZE = Math.floor(availableWidth / COLS);
-            if (BLOCK_SIZE > 60) BLOCK_SIZE = 60; // 防止在超大螢幕上過大
-
+            const availableWidth = window.innerWidth - 40;
+            BLOCK_SIZE = Math.min(Math.floor(availableWidth / COLS), 60);
             boardCanvas.width = BLOCK_SIZE * COLS;
             boardCanvas.height = BLOCK_SIZE * ROWS;
 
@@ -80,7 +77,7 @@
             window.addEventListener('resize', resizeGame);
             resizeGame();
             for (let i = 0; i < 3; i++) generatePieceInDock(i);
-            setupEvents();
+            setupDragEvents();
             drawAll();
         }
 
@@ -89,23 +86,46 @@
             dockPieces[index] = { matrix: PIECES[type-1], colorId: type, id: index };
         }
 
+        function rotatePiece(index) {
+            if (dockPieces[index]) {
+                const m = dockPieces[index].matrix;
+                dockPieces[index].matrix = m[0].map((_, idx) => m.map(row => row[idx]).reverse());
+                drawAll();
+            }
+        }
+
         function drawAll() {
             boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+            
+            // 畫格子底色
             arena.forEach((row, y) => {
                 row.forEach((value, x) => {
                     boardCtx.fillStyle = value ? COLORS[value] : '#3d566e';
-                    boardCtx.shadowBlur = value ? 5 : 0;
-                    boardCtx.shadowColor = "black";
                     boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
                 });
             });
 
+            // 畫移動軌跡預覽 (虛影)
+            if (draggingPiece && currentDropPos) {
+                boardCtx.globalAlpha = 0.4; // 設置半透明
+                draggingPiece.matrix.forEach((row, r) => {
+                    row.forEach((val, c) => {
+                        if (val) {
+                            boardCtx.fillStyle = COLORS[draggingPiece.colorId];
+                            boardCtx.fillRect((currentDropPos.x + c) * BLOCK_SIZE, (currentDropPos.y + r) * BLOCK_SIZE, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+                        }
+                    });
+                });
+                boardCtx.globalAlpha = 1.0;
+            }
+
+            // 畫備選區方塊
             for (let i = 0; i < 3; i++) {
                 const canvas = document.getElementById('piece' + i);
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (dockPieces[i]) {
-                    const pSize = BLOCK_SIZE * 0.8;
+                    const pSize = BLOCK_SIZE * 0.7;
                     const m = dockPieces[i].matrix;
                     const ox = (canvas.width - m[0].length * pSize) / 2;
                     const oy = (canvas.height - m.length * pSize) / 2;
@@ -121,47 +141,48 @@
             }
         }
 
-        function setupEvents() {
+        function setupDragEvents() {
+            const handleTouch = (i, e) => {
+                if (!dockPieces[i]) return;
+                draggingPiece = JSON.parse(JSON.stringify(dockPieces[i]));
+            };
+
             for (let i = 0; i < 3; i++) {
                 const canvas = document.getElementById('piece' + i);
-                
-                canvas.addEventListener('touchstart', (e) => {
-                    if (!dockPieces[i]) return;
-                    e.preventDefault();
-                    draggingPiece = JSON.parse(JSON.stringify(dockPieces[i]));
-                }, {passive: false});
-
-                canvas.addEventListener('click', () => {
-                    if (dockPieces[i]) {
-                        const m = dockPieces[i].matrix;
-                        dockPieces[i].matrix = m[0].map((_, idx) => m.map(row => row[idx]).reverse());
-                        drawAll();
-                    }
-                });
+                canvas.addEventListener('touchstart', (e) => handleTouch(i, e), {passive: false});
             }
 
             window.addEventListener('touchmove', (e) => {
                 if (!draggingPiece) return;
-                e.preventDefault(); 
+                const touch = e.touches[0];
+                const boardRect = boardCanvas.getBoundingClientRect();
+                
+                // 計算影子落點
+                const x = Math.round((touch.clientX - boardRect.left - (draggingPiece.matrix[0].length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
+                const y = Math.round((touch.clientY - boardRect.top - (draggingPiece.matrix.length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
+
+                // 檢查是否在合法範圍內，才顯示虛影
+                if (x >= 0 && x <= COLS - draggingPiece.matrix[0].length && y >= 0 && y <= ROWS - draggingPiece.matrix.length) {
+                    currentDropPos = { x, y };
+                } else {
+                    currentDropPos = null;
+                }
+                drawAll();
             }, {passive: false});
 
             window.addEventListener('touchend', (e) => {
                 if (!draggingPiece) return;
-                const touch = e.changedTouches[0];
-                const boardRect = boardCanvas.getBoundingClientRect();
-                
-                // 磁吸對齊邏輯：增加 0.5 格的偏移容錯
-                const x = Math.round((touch.clientX - boardRect.left - (draggingPiece.matrix[0].length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
-                const y = Math.round((touch.clientY - boardRect.top - (draggingPiece.matrix.length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
-
-                if (tryPlace(draggingPiece.matrix, x, y, draggingPiece.colorId)) {
-                    dockPieces[draggingPiece.id] = null;
-                    if (dockPieces.every(p => p === null)) {
-                        for (let j = 0; j < 3; j++) generatePieceInDock(j);
+                if (currentDropPos) {
+                    if (tryPlace(draggingPiece.matrix, currentDropPos.x, currentDropPos.y, draggingPiece.colorId)) {
+                        dockPieces[draggingPiece.id] = null;
+                        if (dockPieces.every(p => p === null)) {
+                            for (let j = 0; j < 3; j++) generatePieceInDock(j);
+                        }
+                        sweep();
                     }
-                    sweep();
                 }
                 draggingPiece = null;
+                currentDropPos = null;
                 drawAll();
             });
         }
@@ -181,15 +202,18 @@
         }
 
         function sweep() {
-            let lines = 0;
-            for (let y = 0; y < ROWS; y++) {
-                if (arena[y].every(v => v !== 0)) { arena[y].fill(0); lines++; }
+            let fullRows = [];
+            let fullCols = [];
+            for (let y = 0; y < ROWS; y++) if (arena[y].every(v => v !== 0)) fullRows.push(y);
+            for (let x = 0; x < COLS; x++) if (arena.every(row => row[x] !== 0)) fullCols.push(x);
+            
+            fullRows.forEach(y => arena[y].fill(0));
+            fullCols.forEach(x => arena.forEach(row => row[x] = 0));
+            
+            if (fullRows.length > 0 || fullCols.length > 0) {
+                score += (fullRows.length + fullCols.length) * 100;
+                document.getElementById('score').innerText = '💎 分數: ' + score;
             }
-            for (let x = 0; x < COLS; x++) {
-                if (arena.every(row => row[x] !== 0)) { arena.forEach(row => row[x] = 0); lines++; }
-            }
-            score += lines * 100;
-            document.getElementById('score').innerText = '💎 分數: ' + score;
         }
 
         init();
