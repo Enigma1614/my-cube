@@ -2,63 +2,80 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>豪華積木：煙火盛典 🎆</title>
+    <title>武俠積木：絕世高手 🎇</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #0a0a0a; color: #f1c40f; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        body { background: #0a0a0a; color: #f1c40f; text-align: center; font-family: "Microsoft JhengHei", sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        
         #score { font-size: 36px; margin: 10px; text-shadow: 0 0 10px #f1c40f; font-weight: bold; }
+        
         #game-container { position: relative; display: inline-block; background: #1a1a1a; padding: 10px; border: 2px solid #444; border-radius: 15px; }
+        
         canvas { display: block; background: #000; border-radius: 8px; }
+        
         #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 15px; height: 140px; background: rgba(255,255,255,0.05); }
         .piece-canvas { background: transparent; touch-action: none; }
+        
         button { margin-top: 15px; padding: 12px 35px; font-size: 18px; background: #c0392b; color: white; border: none; border-radius: 50px; cursor: pointer; }
+        
+        /* 特效文字樣式 */
+        .float-text {
+            position: absolute;
+            top: 45%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 48px; font-weight: 900;
+            text-shadow: 2px 2px 0 #000, 0 0 20px rgba(255, 255, 255, 0.5);
+            pointer-events: none; z-index: 50;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            opacity: 0; white-space: pre; text-align: center;
+        }
+        
         #msg { position: fixed; top: 40%; width: 100%; font-size: 45px; display: none; color: #ff3d00; font-weight: bold; z-index: 100; text-shadow: 0 0 20px black; }
     </style>
 </head>
 <body onclick="playBGM()">
     <div id="score">武林積分: 0</div>
-    <div id="game-container"><canvas id="mainBoard"></canvas></div>
+    
+    <div id="game-container">
+        <canvas id="mainBoard"></canvas>
+        <div id="combo-text" class="float-text" style="color: #ffff00;"></div>
+        <div id="multi-text" class="float-text" style="top: 30%; color: #00ff00; font-size: 56px;"></div>
+    </div>
+
     <div id="msg">棋盤已滿！</div>
+
     <div id="dock">
         <canvas id="piece0" class="piece-canvas" onclick="rotatePiece(0)"></canvas>
         <canvas id="piece1" class="piece-canvas" onclick="rotatePiece(1)"></canvas>
         <canvas id="piece2" class="piece-canvas" onclick="rotatePiece(2)"></canvas>
     </div>
+    
     <button onclick="resetGame()">♻️ 重整旗鼓</button>
     <audio id="bgm" loop><source src="bgm.mp3" type="audio/mpeg"></audio>
 
     <script>
         const ROWS = 10, COLS = 10;
         let BLOCK_SIZE, boardCanvas, boardCtx;
-        let score = 0, arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        let score = 0, combo = 0;
+        let arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         const COLORS = [null, '#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#eccc68', '#70a1ff', '#ffffff'];
         let dockPieces = [null, null, null], draggingPiece = null, currentDropPos = null;
         let particles = [];
 
-        // --- 粒子系統 (煙火) ---
+        // --- 粒子特效 ---
         class Particle {
             constructor(x, y, color) {
-                this.x = x; this.y = y;
-                this.color = color;
+                this.x = x; this.y = y; this.color = color;
                 const angle = Math.random() * Math.PI * 2;
                 const speed = Math.random() * 6 + 2;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.life = 1.0;
-                this.size = Math.random() * 3 + 1;
+                this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                this.life = 1.0; this.size = Math.random() * 3 + 1;
             }
-            update() {
-                this.x += this.vx; this.y += this.vy;
-                this.vy += 0.15; // 重力效果
-                this.life -= 0.025;
-            }
+            update() { this.x += this.vx; this.y += this.vy; this.vy += 0.2; this.life -= 0.03; }
             draw() {
-                boardCtx.globalAlpha = this.life;
-                boardCtx.fillStyle = this.color;
-                boardCtx.beginPath();
-                boardCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                boardCtx.fill();
-                boardCtx.globalAlpha = 1.0;
+                boardCtx.globalAlpha = this.life; boardCtx.fillStyle = this.color;
+                boardCtx.beginPath(); boardCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                boardCtx.fill(); boardCtx.globalAlpha = 1.0;
             }
         }
 
@@ -82,10 +99,22 @@
         }
 
         function resetGame() {
-            score = 0; arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-            document.getElementById('score').innerText = '武林積分: 0';
+            score = 0; combo = 0;
+            arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            updateScoreUI();
             document.getElementById('msg').style.display = 'none';
             for (let i = 0; i < 3; i++) generatePieceInDock(i);
+        }
+
+        function updateScoreUI() { document.getElementById('score').innerText = '武林積分: ' + score; }
+
+        // --- 特效顯示邏輯 ---
+        function showTextEffect(elementId, text) {
+            const el = document.getElementById(elementId);
+            el.innerText = text;
+            el.style.opacity = '1';
+            el.style.transform = 'translate(-50%, -50%) scale(1.5)';
+            setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translate(-50%, -50%) scale(0)'; }, 1000);
         }
 
         function generatePieceInDock(index) {
@@ -103,28 +132,20 @@
         }
 
         function createExplosion(x, y, color) {
-            for (let i = 0; i < 12; i++) {
-                particles.push(new Particle(x + BLOCK_SIZE/2, y + BLOCK_SIZE/2, color));
-            }
+            for (let i = 0; i < 15; i++) particles.push(new Particle(x + BLOCK_SIZE/2, y + BLOCK_SIZE/2, color));
         }
 
         function drawAll() {
             boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
-            
-            // 繪製格線與方塊
             arena.forEach((row, y) => {
                 row.forEach((v, x) => {
                     boardCtx.fillStyle = v ? COLORS[v] : '#1a1a1a';
-                    if(v) {
-                        boardCtx.shadowBlur = 8;
-                        boardCtx.shadowColor = COLORS[v];
-                    }
+                    if(v) { boardCtx.shadowBlur = 8; boardCtx.shadowColor = COLORS[v]; }
                     boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
                     boardCtx.shadowBlur = 0;
                 });
             });
 
-            // 繪製虛影
             if (draggingPiece && currentDropPos) {
                 boardCtx.globalAlpha = 0.3;
                 draggingPiece.matrix.forEach((row, r) => {
@@ -138,11 +159,9 @@
                 boardCtx.globalAlpha = 1.0;
             }
 
-            // 更新並繪製煙火
             particles = particles.filter(p => p.life > 0);
             particles.forEach(p => { p.update(); p.draw(); });
 
-            // 繪製備選區
             for (let i = 0; i < 3; i++) {
                 const c = document.getElementById('piece' + i), ctx = c.getContext('2d');
                 ctx.clearRect(0, 0, c.width, c.height);
@@ -189,12 +208,16 @@
             return true;
         }
 
+        // --- 核心：多重消除 + 連擊判定 ---
         function sweep() {
             let rIdx = [], cIdx = [];
             for (let y = 0; y < ROWS; y++) if (arena[y].every(v => v !== 0)) rIdx.push(y);
             for (let x = 0; x < COLS; x++) if (arena.every(row => row[x] !== 0)) cIdx.push(x);
             
-            if (rIdx.length || cIdx.length) {
+            const totalLines = rIdx.length + cIdx.length;
+
+            if (totalLines > 0) {
+                // 1. 觸發煙火
                 rIdx.forEach(y => {
                     for(let x=0; x<COLS; x++) createExplosion(x*BLOCK_SIZE, y*BLOCK_SIZE, COLORS[arena[y][x]]);
                     arena[y].fill(0);
@@ -203,9 +226,40 @@
                     for(let y=0; y<ROWS; y++) createExplosion(x*BLOCK_SIZE, y*BLOCK_SIZE, COLORS[arena[y][x]]);
                     arena.forEach(row => row[x] = 0);
                 });
-                score += (rIdx.length + cIdx.length) * 100;
-                document.getElementById('score').innerText = '武林積分: ' + score;
+
+                // 2. 連擊判定 (Streak)
+                combo++;
+                
+                // 3. 多重消除判定 (Multi-Line)
+                if (totalLines >= 2) {
+                    let msg = "";
+                    if (totalLines === 2) msg = "雙殺！DOUBLE";
+                    else if (totalLines === 3) msg = "三殺！TRIPLE";
+                    else if (totalLines >= 4) msg = "暴走！ULTRA";
+                    
+                    // 顯示上方大字
+                    showTextEffect('multi-text', msg);
+                }
+
+                // 4. 連擊顯示 (Streak)
+                if (combo > 1) {
+                    showTextEffect('combo-text', "COMBO x" + combo + " 🔥");
+                }
+
+                // 5. 分數計算 (含多重消除獎勵)
+                // 基礎: 每行100
+                // 多行獎勵: 行數平方 * 50 (例如消4行就是 16*50 = 800分額外獎勵)
+                // 連擊獎勵: Combo * 50
+                let multiBonus = (totalLines > 1) ? (totalLines * totalLines * 50) : 0;
+                let streakBonus = (combo > 1) ? (combo * 50) : 0;
+                
+                score += (totalLines * 100) + multiBonus + streakBonus;
+
+            } else {
+                combo = 0;
             }
+            
+            updateScoreUI();
         }
 
         function checkGameOver() {
