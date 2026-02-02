@@ -2,218 +2,194 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>繽紛俄羅斯方塊</title>
+    <title>拖拉積木大挑戰</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #1a1a2e; color: white; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; overflow: hidden; }
-        canvas { border: 4px solid #30336b; background: #000; display: block; margin: 10px auto; max-height: 60vh; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 90%; margin: 10px auto; }
-        button { 
-            padding: 18px; font-size: 22px; background: #4834d4; border: none; 
-            color: white; border-radius: 15px; touch-action: manipulation; box-shadow: 0 4px #273c75;
+        body { background: #2c3e50; color: white; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        #score { font-size: 24px; margin: 15px; color: #f1c40f; }
+        #game-container { position: relative; display: inline-block; background: #34495e; padding: 5px; border-radius: 10px; }
+        canvas { display: block; background: #2c3e50; border-radius: 5px; }
+        #dock { 
+            display: flex; justify-content: space-around; align-items: center; 
+            margin-top: 20px; height: 120px; background: rgba(0,0,0,0.2); padding: 10px;
         }
-        button:active { transform: translateY(4px); box-shadow: none; }
-        .btn-rotate { background: #eb4d4b; grid-column: span 3; }
-        #score { font-size: 28px; margin-top: 10px; color: #f9ca24; text-shadow: 2px 2px #000; }
+        .piece-canvas { background: transparent; cursor: grab; touch-action: none; }
     </style>
 </head>
 <body>
-    <div id="score">分數: 0</div>
-    <canvas id="tetris" width="240" height="400"></canvas>
+    <div id="score">💎 分數: 0</div>
+    
+    <div id="game-container">
+        <canvas id="mainBoard" width="300" height="300"></canvas>
+    </div>
 
-    <div class="controls">
-        <button class="btn-rotate" onclick="playerRotate()">🔄 旋轉變形</button>
-        <button onclick="playerMove(-1)">⬅️ 左邊</button>
-        <button onclick="playerDrop()">⬇️ 加速</button>
-        <button onclick="playerMove(1)">右邊 ➡️</button>
+    <div id="hint" style="font-size: 14px; margin-top: 10px; color: #bdc3c7;">點擊方塊旋轉，拖拉放入格子</div>
+
+    <div id="dock">
+        <canvas id="piece0" class="piece-canvas" width="100" height="100"></canvas>
+        <canvas id="piece1" class="piece-canvas" width="100" height="100"></canvas>
+        <canvas id="piece2" class="piece-canvas" width="100" height="100"></canvas>
     </div>
 
     <script>
-        const canvas = document.getElementById('tetris');
-        const context = canvas.getContext('2d');
-        context.scale(20, 20);
+        const ROWS = 10, COLS = 10, BLOCK_SIZE = 30;
+        const boardCanvas = document.getElementById('mainBoard');
+        const boardCtx = boardCanvas.getContext('2d');
+        let score = 0;
+        let arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        // 方塊種類
+        const PIECES = [
+            [[1, 1, 1, 1]], // I
+            [[1, 1], [1, 1]], // O
+            [[0, 1, 0], [1, 1, 1]], // T
+            [[1, 1, 0], [0, 1, 1]], // Z
+            [[1, 0], [1, 0], [1, 1]]  // L
+        ];
+        const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D'];
 
-        // --- 粒子系統 (特效) ---
-        let particles = [];
-        class Particle {
-            constructor(x, y, color) {
-                this.x = x; this.y = y;
-                this.color = color;
-                this.vel = { x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.5 };
-                this.life = 1.0;
-            }
-            draw() {
-                context.globalAlpha = this.life;
-                context.fillStyle = this.color;
-                context.fillRect(this.x, this.y, 0.2, 0.2);
-                context.globalAlpha = 1;
-            }
-            update() {
-                this.x += this.vel.x;
-                this.y += this.vel.y;
-                this.life -= 0.02;
-            }
+        let dockPieces = [null, null, null];
+        let draggingPiece = null;
+        let dragOffset = { x: 0, y: 0 };
+
+        function init() {
+            for (let i = 0; i < 3; i++) generatePieceInDock(i);
+            drawAll();
+            setupEvents();
         }
 
-        function createExplosion(y, colors) {
-            for (let x = 0; x < 12; x++) {
-                for (let i = 0; i < 5; i++) {
-                    particles.push(new Particle(x, y, colors[Math.floor(Math.random() * colors.length)]));
-                }
-            }
+        function generatePieceInDock(index) {
+            const type = Math.floor(Math.random() * PIECES.length) + 1;
+            dockPieces[index] = {
+                matrix: PIECES[type-1],
+                colorId: type,
+                id: index
+            };
         }
 
-        // --- 遊戲邏輯 ---
-        function arenaSweep() {
-            let rowCount = 1;
-            const colors = ['#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
-            outer: for (let y = arena.length - 1; y > 0; --y) {
-                for (let x = 0; x < arena[y].length; ++x) {
-                    if (arena[y][x] === 0) continue outer;
-                }
-                // 觸發特效
-                createExplosion(y, colors);
-                const row = arena.splice(y, 1)[0].fill(0);
-                arena.unshift(row);
-                ++y;
-                player.score += rowCount * 10;
-                rowCount *= 2;
-            }
-            updateScore();
-        }
-
-        function collide(arena, player) {
-            const [m, o] = [player.matrix, player.pos];
-            for (let y = 0; y < m.length; ++y) {
-                for (let x = 0; x < m[y].length; ++x) {
-                    if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
-                }
-            }
-            return false;
-        }
-
-        function createMatrix(w, h) {
-            const matrix = [];
-            while (h--) matrix.push(new Array(w).fill(0));
-            return matrix;
-        }
-
-        function createPiece(type) {
-            if (type === 'I') return [[0, 1, 0, 0], [0, 1, 0, 0], [0, 1, 0, 0], [0, 1, 0, 0]];
-            if (type === 'L') return [[0, 2, 0], [0, 2, 0], [0, 2, 2]];
-            if (type === 'J') return [[0, 3, 0], [0, 3, 0], [3, 3, 0]];
-            if (type === 'O') return [[4, 4], [4, 4]];
-            if (type === 'Z') return [[5, 5, 0], [0, 5, 5], [0, 0, 0]];
-            if (type === 'S') return [[0, 6, 6], [6, 6, 0], [0, 0, 0]];
-            if (type === 'T') return [[0, 7, 0], [7, 7, 7], [0, 0, 0]];
-        }
-
-        function drawMatrix(matrix, offset) {
-            const colors = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+        function drawMatrix(matrix, offset, ctx, size, colorId) {
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        context.fillStyle = colors[value];
-                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        // 方塊高光效果
-                        context.fillStyle = 'rgba(255,255,255,0.3)';
-                        context.fillRect(x + offset.x, y + offset.y, 1, 0.1);
+                        ctx.fillStyle = COLORS[colorId];
+                        ctx.fillRect((x + offset.x) * size, (y + offset.y) * size, size - 1, size - 1);
                     }
                 });
             });
         }
 
-        function draw() {
-            context.fillStyle = '#000';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            drawMatrix(arena, {x: 0, y: 0});
-            drawMatrix(player.matrix, player.pos);
-            
-            // 繪製粒子
-            particles.forEach((p, index) => {
-                p.update();
-                p.draw();
-                if (p.life <= 0) particles.splice(index, 1);
-            });
-        }
-
-        function merge(arena, player) {
-            player.matrix.forEach((row, y) => {
+        function drawAll() {
+            // 畫主棋盤
+            boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
+            arena.forEach((row, y) => {
                 row.forEach((value, x) => {
-                    if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value;
+                    boardCtx.fillStyle = value ? COLORS[value] : '#3d566e';
+                    boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1);
                 });
             });
-        }
 
-        function playerDrop() {
-            player.pos.y++;
-            if (collide(arena, player)) {
-                player.pos.y--;
-                merge(arena, player);
-                playerReset();
-                arenaSweep();
-                updateScore();
-            }
-            dropCounter = 0;
-        }
-
-        function playerMove(dir) {
-            player.pos.x += dir;
-            if (collide(arena, player)) player.pos.x -= dir;
-        }
-
-        function playerReset() {
-            const pieces = 'ILJOTSZ';
-            player.matrix = createPiece(pieces[pieces.length * Math.random() | 0]);
-            player.pos.y = 0;
-            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
-            if (collide(arena, player)) {
-                arena.forEach(row => row.fill(0));
-                player.score = 0;
-                updateScore();
-            }
-        }
-
-        function playerRotate() {
-            const pos = player.pos.x;
-            let offset = 1;
-            const matrix = player.matrix;
-            for (let y = 0; y < matrix.length; ++y) {
-                for (let x = 0; x < y; ++x) {
-                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+            // 畫備選方塊
+            for (let i = 0; i < 3; i++) {
+                const canvas = document.getElementById('piece' + i);
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (dockPieces[i]) {
+                    drawMatrix(dockPieces[i].matrix, {x:0.5, y:0.5}, ctx, 25, dockPieces[i].colorId);
                 }
             }
-            matrix.forEach(row => row.reverse());
-            while (collide(arena, player)) {
-                player.pos.x += offset;
-                offset = -(offset + (offset > 0 ? 1 : -1));
-                if (offset > player.matrix[0].length) return;
+        }
+
+        function rotate(matrix) {
+            const m = matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
+            return m;
+        }
+
+        function setupEvents() {
+            for (let i = 0; i < 3; i++) {
+                const canvas = document.getElementById('piece' + i);
+                
+                // 點擊旋轉
+                canvas.addEventListener('click', () => {
+                    if (dockPieces[i]) {
+                        dockPieces[i].matrix = rotate(dockPieces[i].matrix);
+                        drawAll();
+                    }
+                });
+
+                // 拖拉邏輯
+                canvas.addEventListener('touchstart', (e) => {
+                    if (!dockPieces[i]) return;
+                    draggingPiece = JSON.parse(JSON.stringify(dockPieces[i]));
+                    const touch = e.touches[0];
+                    const rect = canvas.getBoundingClientRect();
+                    dragOffset.x = touch.clientX - rect.left;
+                    dragOffset.y = touch.clientY - rect.top;
+                });
             }
+
+            window.addEventListener('touchmove', (e) => {
+                if (!draggingPiece) return;
+                // 這裡可以加入跟隨手指的視覺效果，為求簡潔先略過
+            });
+
+            window.addEventListener('touchend', (e) => {
+                if (!draggingPiece) return;
+                const touch = e.changedTouches[0];
+                const boardRect = boardCanvas.getBoundingClientRect();
+                
+                // 計算落在棋盤的哪個格子
+                const x = Math.floor((touch.clientX - boardRect.left) / BLOCK_SIZE);
+                const y = Math.floor((touch.clientY - boardRect.top) / BLOCK_SIZE);
+
+                if (tryPlace(draggingPiece.matrix, x, y, draggingPiece.colorId)) {
+                    dockPieces[draggingPiece.id] = null;
+                    if (dockPieces.every(p => p === null)) {
+                        for (let i = 0; i < 3; i++) generatePieceInDock(i);
+                    }
+                    sweep();
+                }
+                draggingPiece = null;
+                drawAll();
+            });
         }
 
-        let dropCounter = 0;
-        let dropInterval = 1000;
-        let lastTime = 0;
-
-        function update(time = 0) {
-            const deltaTime = time - lastTime;
-            lastTime = time;
-            dropCounter += deltaTime;
-            if (dropCounter > dropInterval) playerDrop();
-            draw();
-            requestAnimationFrame(update);
+        function tryPlace(matrix, x, y, colorId) {
+            for (let row = 0; row < matrix.length; row++) {
+                for (let col = 0; col < matrix[row].length; col++) {
+                    if (matrix[row][col]) {
+                        if (!arena[y + row] || arena[y + row][x + col] !== 0) return false;
+                    }
+                }
+            }
+            matrix.forEach((row, r) => {
+                row.forEach((val, c) => {
+                    if (val) arena[y + r][x + c] = colorId;
+                });
+            });
+            return true;
         }
 
-        function updateScore() {
-            document.getElementById('score').innerText = '💎 分數: ' + player.score;
+        function sweep() {
+            let lines = 0;
+            // 檢查橫列
+            for (let y = 0; y < ROWS; y++) {
+                if (arena[y].every(v => v !== 0)) {
+                    arena[y].fill(0);
+                    lines++;
+                }
+            }
+            // 檢查直欄
+            for (let x = 0; x < COLS; x++) {
+                if (arena.every(row => row[x] !== 0)) {
+                    for (let y = 0; y < ROWS; y++) arena[y][x] = 0;
+                    lines++;
+                }
+            }
+            score += lines * 100;
+            document.getElementById('score').innerText = '💎 分數: ' + score;
         }
 
-        const arena = createMatrix(12, 20);
-        const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
-
-        playerReset();
-        updateScore();
-        update();
+        init();
     </script>
 </body>
 </html>
