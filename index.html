@@ -2,149 +2,162 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>拖拉積木大挑戰</title>
+    <title>豪華平板版：積木大挑戰</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #2c3e50; color: white; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; touch-action: none; }
-        #score { font-size: 24px; margin: 15px; color: #f1c40f; }
-        #game-container { position: relative; display: inline-block; background: #34495e; padding: 5px; border-radius: 10px; }
-        canvas { display: block; background: #2c3e50; border-radius: 5px; }
+        body { 
+            background: #2c3e50; color: white; text-align: center; 
+            font-family: sans-serif; margin: 0; overflow: hidden; 
+            touch-action: none; /* 重要：防止整個網頁被拖動 */
+        }
+        #score { font-size: 32px; margin: 20px; color: #f1c40f; font-weight: bold; }
+        #game-container { 
+            position: relative; display: inline-block; background: #34495e; 
+            padding: 10px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        canvas { display: block; background: #2c3e50; border-radius: 10px; }
         #dock { 
             display: flex; justify-content: space-around; align-items: center; 
-            margin-top: 20px; height: 120px; background: rgba(0,0,0,0.2); padding: 10px;
+            margin-top: 30px; height: 180px; background: rgba(0,0,0,0.3); padding: 15px;
         }
         .piece-canvas { background: transparent; cursor: grab; touch-action: none; }
+        #hint { font-size: 18px; margin-top: 15px; color: #bdc3c7; }
     </style>
 </head>
 <body>
     <div id="score">💎 分數: 0</div>
     
     <div id="game-container">
-        <canvas id="mainBoard" width="300" height="300"></canvas>
+        <canvas id="mainBoard"></canvas>
     </div>
 
-    <div id="hint" style="font-size: 14px; margin-top: 10px; color: #bdc3c7;">點擊方塊旋轉，拖拉放入格子</div>
+    <div id="hint">點擊旋轉 🔄 拖拉放入格子</div>
 
     <div id="dock">
-        <canvas id="piece0" class="piece-canvas" width="100" height="100"></canvas>
-        <canvas id="piece1" class="piece-canvas" width="100" height="100"></canvas>
-        <canvas id="piece2" class="piece-canvas" width="100" height="100"></canvas>
+        <canvas id="piece0" class="piece-canvas"></canvas>
+        <canvas id="piece1" class="piece-canvas"></canvas>
+        <canvas id="piece2" class="piece-canvas"></canvas>
     </div>
 
     <script>
-        const ROWS = 10, COLS = 10, BLOCK_SIZE = 30;
+        const ROWS = 10, COLS = 10;
+        let BLOCK_SIZE;
         const boardCanvas = document.getElementById('mainBoard');
         const boardCtx = boardCanvas.getContext('2d');
+        
         let score = 0;
         let arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
-        // 方塊種類
         const PIECES = [
-            [[1, 1, 1, 1]], // I
-            [[1, 1], [1, 1]], // O
-            [[0, 1, 0], [1, 1, 1]], // T
-            [[1, 1, 0], [0, 1, 1]], // Z
-            [[1, 0], [1, 0], [1, 1]]  // L
+            [[1, 1, 1, 1]], [[1, 1], [1, 1]], [[0, 1, 0], [1, 1, 1]], 
+            [[1, 1, 0], [0, 1, 1]], [[1, 0], [1, 0], [1, 1]], [[1], [1], [1]]
         ];
-        const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D'];
+        const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138'];
 
         let dockPieces = [null, null, null];
         let draggingPiece = null;
-        let dragOffset = { x: 0, y: 0 };
+        let dragPos = { x: 0, y: 0 };
+
+        function resizeGame() {
+            // 根據平板寬度調整格子大小
+            const padding = 40;
+            const availableWidth = window.innerWidth - padding;
+            BLOCK_SIZE = Math.floor(availableWidth / COLS);
+            if (BLOCK_SIZE > 60) BLOCK_SIZE = 60; // 防止在超大螢幕上過大
+
+            boardCanvas.width = BLOCK_SIZE * COLS;
+            boardCanvas.height = BLOCK_SIZE * ROWS;
+
+            for (let i = 0; i < 3; i++) {
+                const pCanvas = document.getElementById('piece' + i);
+                pCanvas.width = window.innerWidth / 3.5;
+                pCanvas.height = 140;
+            }
+            drawAll();
+        }
 
         function init() {
+            window.addEventListener('resize', resizeGame);
+            resizeGame();
             for (let i = 0; i < 3; i++) generatePieceInDock(i);
-            drawAll();
             setupEvents();
+            drawAll();
         }
 
         function generatePieceInDock(index) {
             const type = Math.floor(Math.random() * PIECES.length) + 1;
-            dockPieces[index] = {
-                matrix: PIECES[type-1],
-                colorId: type,
-                id: index
-            };
-        }
-
-        function drawMatrix(matrix, offset, ctx, size, colorId) {
-            matrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        ctx.fillStyle = COLORS[colorId];
-                        ctx.fillRect((x + offset.x) * size, (y + offset.y) * size, size - 1, size - 1);
-                    }
-                });
-            });
+            dockPieces[index] = { matrix: PIECES[type-1], colorId: type, id: index };
         }
 
         function drawAll() {
-            // 畫主棋盤
             boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
             arena.forEach((row, y) => {
                 row.forEach((value, x) => {
                     boardCtx.fillStyle = value ? COLORS[value] : '#3d566e';
-                    boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 1, BLOCK_SIZE - 1);
+                    boardCtx.shadowBlur = value ? 5 : 0;
+                    boardCtx.shadowColor = "black";
+                    boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
                 });
             });
 
-            // 畫備選方塊
             for (let i = 0; i < 3; i++) {
                 const canvas = document.getElementById('piece' + i);
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (dockPieces[i]) {
-                    drawMatrix(dockPieces[i].matrix, {x:0.5, y:0.5}, ctx, 25, dockPieces[i].colorId);
+                    const pSize = BLOCK_SIZE * 0.8;
+                    const m = dockPieces[i].matrix;
+                    const ox = (canvas.width - m[0].length * pSize) / 2;
+                    const oy = (canvas.height - m.length * pSize) / 2;
+                    m.forEach((row, y) => {
+                        row.forEach((val, x) => {
+                            if (val) {
+                                ctx.fillStyle = COLORS[dockPieces[i].colorId];
+                                ctx.fillRect(ox + x * pSize, oy + y * pSize, pSize - 2, pSize - 2);
+                            }
+                        });
+                    });
                 }
             }
-        }
-
-        function rotate(matrix) {
-            const m = matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
-            return m;
         }
 
         function setupEvents() {
             for (let i = 0; i < 3; i++) {
                 const canvas = document.getElementById('piece' + i);
                 
-                // 點擊旋轉
-                canvas.addEventListener('click', () => {
-                    if (dockPieces[i]) {
-                        dockPieces[i].matrix = rotate(dockPieces[i].matrix);
-                        drawAll();
-                    }
-                });
-
-                // 拖拉邏輯
                 canvas.addEventListener('touchstart', (e) => {
                     if (!dockPieces[i]) return;
+                    e.preventDefault();
                     draggingPiece = JSON.parse(JSON.stringify(dockPieces[i]));
-                    const touch = e.touches[0];
-                    const rect = canvas.getBoundingClientRect();
-                    dragOffset.x = touch.clientX - rect.left;
-                    dragOffset.y = touch.clientY - rect.top;
+                }, {passive: false});
+
+                canvas.addEventListener('click', () => {
+                    if (dockPieces[i]) {
+                        const m = dockPieces[i].matrix;
+                        dockPieces[i].matrix = m[0].map((_, idx) => m.map(row => row[idx]).reverse());
+                        drawAll();
+                    }
                 });
             }
 
             window.addEventListener('touchmove', (e) => {
                 if (!draggingPiece) return;
-                // 這裡可以加入跟隨手指的視覺效果，為求簡潔先略過
-            });
+                e.preventDefault(); 
+            }, {passive: false});
 
             window.addEventListener('touchend', (e) => {
                 if (!draggingPiece) return;
                 const touch = e.changedTouches[0];
                 const boardRect = boardCanvas.getBoundingClientRect();
                 
-                // 計算落在棋盤的哪個格子
-                const x = Math.floor((touch.clientX - boardRect.left) / BLOCK_SIZE);
-                const y = Math.floor((touch.clientY - boardRect.top) / BLOCK_SIZE);
+                // 磁吸對齊邏輯：增加 0.5 格的偏移容錯
+                const x = Math.round((touch.clientX - boardRect.left - (draggingPiece.matrix[0].length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
+                const y = Math.round((touch.clientY - boardRect.top - (draggingPiece.matrix.length * BLOCK_SIZE / 2)) / BLOCK_SIZE);
 
                 if (tryPlace(draggingPiece.matrix, x, y, draggingPiece.colorId)) {
                     dockPieces[draggingPiece.id] = null;
                     if (dockPieces.every(p => p === null)) {
-                        for (let i = 0; i < 3; i++) generatePieceInDock(i);
+                        for (let j = 0; j < 3; j++) generatePieceInDock(j);
                     }
                     sweep();
                 }
@@ -154,36 +167,26 @@
         }
 
         function tryPlace(matrix, x, y, colorId) {
-            for (let row = 0; row < matrix.length; row++) {
-                for (let col = 0; col < matrix[row].length; col++) {
-                    if (matrix[row][col]) {
-                        if (!arena[y + row] || arena[y + row][x + col] !== 0) return false;
+            for (let r = 0; r < matrix.length; r++) {
+                for (let c = 0; c < matrix[r].length; c++) {
+                    if (matrix[r][c]) {
+                        if (y + r < 0 || y + r >= ROWS || x + c < 0 || x + c >= COLS || arena[y + r][x + c] !== 0) return false;
                     }
                 }
             }
             matrix.forEach((row, r) => {
-                row.forEach((val, c) => {
-                    if (val) arena[y + r][x + c] = colorId;
-                });
+                row.forEach((val, c) => { if (val) arena[y + r][x + c] = colorId; });
             });
             return true;
         }
 
         function sweep() {
             let lines = 0;
-            // 檢查橫列
             for (let y = 0; y < ROWS; y++) {
-                if (arena[y].every(v => v !== 0)) {
-                    arena[y].fill(0);
-                    lines++;
-                }
+                if (arena[y].every(v => v !== 0)) { arena[y].fill(0); lines++; }
             }
-            // 檢查直欄
             for (let x = 0; x < COLS; x++) {
-                if (arena.every(row => row[x] !== 0)) {
-                    for (let y = 0; y < ROWS; y++) arena[y][x] = 0;
-                    lines++;
-                }
+                if (arena.every(row => row[x] !== 0)) { arena.forEach(row => row[x] = 0); lines++; }
             }
             score += lines * 100;
             document.getElementById('score').innerText = '💎 分數: ' + score;
