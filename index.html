@@ -2,129 +2,122 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>太空積木：音樂版 🚀</title>
+    <title>武俠積木大挑戰 ⚔️</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #0f0c29; color: white; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; touch-action: none; }
-        #score { font-size: 36px; margin: 15px; color: #00d2ff; font-weight: bold; text-shadow: 0 0 10px #00d2ff; }
-        #game-container { position: relative; display: inline-block; background: #1b1b2f; padding: 8px; border-radius: 12px; box-shadow: 0 0 20px #00d2ff; }
-        canvas { display: block; background: #16213e; border-radius: 8px; }
-        #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 20px; height: 160px; background: rgba(255,255,255,0.05); }
-        .piece-canvas { background: transparent; touch-action: none; border: 1px dashed rgba(255,255,255,0.1); border-radius: 10px; }
-        #music-btn { position: absolute; top: 10px; right: 10px; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid white; border-radius: 5px; color: white; }
+        body { background: #1a0f00; color: #f1c40f; text-align: center; font-family: "Microsoft JhengHei", sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        #score { font-size: 32px; margin: 10px; text-shadow: 2px 2px #000; }
+        #game-container { position: relative; display: inline-block; background: #3e2723; padding: 8px; border: 3px solid #f1c40f; border-radius: 12px; }
+        canvas { display: block; background: #2b1d0e; border-radius: 5px; }
+        #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 15px; height: 140px; background: rgba(0,0,0,0.3); }
+        .piece-canvas { background: transparent; touch-action: none; }
+        .btns { margin-top: 15px; }
+        button { padding: 10px 25px; font-size: 18px; background: #795548; color: white; border: 2px solid #f1c40f; border-radius: 5px; cursor: pointer; }
+        button:active { background: #5d4037; }
+        #msg { position: fixed; top: 50%; width: 100%; font-size: 40px; display: none; text-shadow: 3px 3px #000; pointer-events: none; }
     </style>
 </head>
-<body onclick="startEverything()">
-    <div id="score">🚀 0</div>
+<body onclick="startMusic()">
+    <div id="score">武林積分: 0</div>
     <div id="game-container"><canvas id="mainBoard"></canvas></div>
+    <div id="msg">棋盤已滿！</div>
     <div id="dock">
         <canvas id="piece0" class="piece-canvas" onclick="rotatePiece(0)"></canvas>
         <canvas id="piece1" class="piece-canvas" onclick="rotatePiece(1)"></canvas>
         <canvas id="piece2" class="piece-canvas" onclick="rotatePiece(2)"></canvas>
     </div>
-    <div id="music-btn">點擊畫面開啟音樂 🎵</div>
+    <div class="btns">
+        <button onclick="resetGame()">♻️ 重新開始</button>
+    </div>
 
     <script>
         const ROWS = 10, COLS = 10;
         let BLOCK_SIZE, boardCanvas, boardCtx;
         let score = 0, arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-        const COLORS = [null, '#FF4E50', '#FC913A', '#F9D423', '#EDE574', '#E1F5C4', '#4ECDC4', '#45B7D1'];
+        const COLORS = [null, '#e67e22', '#d35400', '#f1c40f', '#c0392b', '#8e44ad', '#27ae60', '#2980b9'];
         let dockPieces = [null, null, null], draggingPiece = null, currentDropPos = null;
         let rockets = [];
 
-        // --- 音樂與音效系統 ---
-        let audioCtx = null;
-        let melodyStarted = false;
-
-        function startEverything() {
+        // --- 金庸風 MIDI 模擬器 ---
+        let audioCtx = null, melodyTimer = null;
+        function startMusic() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                startBGM();
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            if (!melodyStarted) {
-                startBGM();
-                melodyStarted = true;
-                document.getElementById('music-btn').style.display = 'none';
-            }
         }
 
-        // 簡單的 8-bit 旋律循環 (C 大調)
         function startBGM() {
-            const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 329.63, 261.63, 392.00]; // 基礎旋律
-            let currentNote = 0;
-            
-            setInterval(() => {
+            // 模擬古箏音色的五聲音階 (宮商角徵羽)
+            const melody = [392, 440, 523, 587, 659, 587, 523, 440]; 
+            let step = 0;
+            melodyTimer = setInterval(() => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(notes[currentNote], audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.03, audioCtx.currentTime); // 輕微的背景音量
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
-                
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.4);
-                
-                currentNote = (currentNote + 1) % notes.length;
-            }, 500); // 節奏 0.5 秒一拍
+                osc.type = 'triangle'; // 較柔和的木質音色
+                osc.frequency.setValueAtTime(melody[step], audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+                step = (step + 1) % melody.length;
+            }, 600);
         }
 
-        function playSound(freq, duration, type) {
+        function playEffect(freq, type) {
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
             osc.type = type || 'sine';
             osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            osc.start(); osc.stop(audioCtx.currentTime + duration);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.2);
         }
 
-        // --- 火箭特效 ---
-        class Rocket {
-            constructor(axis, index) { this.axis = axis; this.index = index; this.pos = 0; this.life = 1.0; }
-            draw() {
-                boardCtx.fillStyle = "rgba(255, 255, 255, " + this.life + ")";
-                if (this.axis === 'row') boardCtx.fillRect(this.pos * boardCanvas.width, this.index * BLOCK_SIZE, boardCanvas.width * 0.2, BLOCK_SIZE);
-                else boardCtx.fillRect(this.index * BLOCK_SIZE, this.pos * boardCanvas.height, BLOCK_SIZE, boardCanvas.height * 0.2);
-            }
-            update() { this.pos += 0.05; this.life -= 0.03; }
-        }
-
+        // --- 核心邏輯 ---
         function init() {
             boardCanvas = document.getElementById('mainBoard');
             boardCtx = boardCanvas.getContext('2d');
             window.addEventListener('resize', resizeGame);
             resizeGame();
-            for (let i = 0; i < 3; i++) generatePieceInDock(i);
+            resetGame();
             setupDragEvents();
             animate();
         }
 
+        function resetGame() {
+            score = 0;
+            arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            document.getElementById('score').innerText = '武林積分: 0';
+            document.getElementById('msg').style.display = 'none';
+            for (let i = 0; i < 3; i++) generatePieceInDock(i);
+            if(audioCtx) playEffect(261, 'square');
+        }
+
         function resizeGame() {
-            BLOCK_SIZE = Math.min(Math.floor((window.innerWidth - 40) / COLS), 60);
+            BLOCK_SIZE = Math.min(Math.floor((window.innerWidth - 50) / COLS), 50);
             boardCanvas.width = BLOCK_SIZE * COLS;
             boardCanvas.height = BLOCK_SIZE * ROWS;
             for (let i = 0; i < 3; i++) {
                 const c = document.getElementById('piece' + i);
-                c.width = window.innerWidth / 3.5; c.height = 140;
+                c.width = window.innerWidth / 3.5; c.height = 120;
             }
         }
 
         function generatePieceInDock(index) {
-            const mList = [[[1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,1,0],[0,1,1]], [[1,0],[1,0],[1,1]], [[1,1,1,1]], [[1]]];
+            const mList = [[[1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,1,0],[0,1,1]], [[1,1,1,1]], [[1]]];
             const type = Math.floor(Math.random() * mList.length);
             dockPieces[index] = { matrix: mList[type], colorId: Math.floor(Math.random()*7)+1, id: index };
         }
 
         function rotatePiece(i) {
             if (dockPieces[i]) {
-                startEverything();
                 const m = dockPieces[i].matrix;
                 dockPieces[i].matrix = m[0].map((_, x) => m.map(row => row[x]).reverse());
-                playSound(440, 0.1);
+                playEffect(523);
             }
         }
 
@@ -132,13 +125,13 @@
             boardCtx.clearRect(0, 0, boardCanvas.width, boardCanvas.height);
             arena.forEach((row, y) => {
                 row.forEach((v, x) => {
-                    boardCtx.fillStyle = v ? COLORS[v] : '#252545';
+                    boardCtx.fillStyle = v ? COLORS[v] : '#3e2723';
                     boardCtx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
                 });
             });
 
             if (draggingPiece && currentDropPos) {
-                boardCtx.globalAlpha = 0.3;
+                boardCtx.globalAlpha = 0.4;
                 draggingPiece.matrix.forEach((row, r) => {
                     row.forEach((v, c) => {
                         if (v) {
@@ -150,13 +143,11 @@
                 boardCtx.globalAlpha = 1.0;
             }
 
-            rockets.forEach((r, i) => { r.update(); r.draw(); if (r.life <= 0) rockets.splice(i, 1); });
-            
             for (let i = 0; i < 3; i++) {
                 const c = document.getElementById('piece' + i), ctx = c.getContext('2d');
                 ctx.clearRect(0, 0, c.width, c.height);
                 if (dockPieces[i]) {
-                    const s = BLOCK_SIZE * 0.6, m = dockPieces[i].matrix;
+                    const s = BLOCK_SIZE * 0.7, m = dockPieces[i].matrix;
                     const ox = (c.width - m[0].length * s) / 2, oy = (c.height - m.length * s) / 2;
                     m.forEach((row, y) => row.forEach((v, x) => {
                         if (v) { ctx.fillStyle = COLORS[dockPieces[i].colorId]; ctx.fillRect(ox + x * s, oy + y * s, s - 2, s - 2); }
@@ -173,22 +164,21 @@
             };
             for (let i = 0; i < 3; i++) {
                 document.getElementById('piece' + i).addEventListener('touchstart', (e) => {
-                    if (dockPieces[i]) { startEverything(); draggingPiece = JSON.parse(JSON.stringify(dockPieces[i])); }
+                    if (dockPieces[i]) { draggingPiece = JSON.parse(JSON.stringify(dockPieces[i])); }
                 });
             }
             window.addEventListener('touchmove', (e) => { if (draggingPiece) currentDropPos = getTouchPos(e); });
             window.addEventListener('touchend', (e) => {
                 if (draggingPiece && currentDropPos) {
                     if (tryPlace(draggingPiece.matrix, currentDropPos.x, currentDropPos.y, draggingPiece.colorId)) {
-                        playSound(200, 0.1, 'square');
+                        playEffect(200);
                         dockPieces[draggingPiece.id] = null;
-                        let empty = true;
-                        for(let k=0; k<3; k++) if(dockPieces[k] !== null) empty = false;
-                        if (empty) for (let j = 0; j < 3; j++) generatePieceInDock(j);
+                        if (dockPieces.every(p => p === null)) for (let j = 0; j < 3; j++) generatePieceInDock(j);
                         sweep();
                     }
                 }
                 draggingPiece = null; currentDropPos = null;
+                checkGameOver();
             });
         }
 
@@ -205,12 +195,35 @@
             for (let y = 0; y < ROWS; y++) if (arena[y].every(v => v !== 0)) rIdx.push(y);
             for (let x = 0; x < COLS; x++) if (arena.every(row => row[x] !== 0)) cIdx.push(x);
             if (rIdx.length || cIdx.length) {
-                playSound(600, 0.4, 'sawtooth');
-                rIdx.forEach(y => { arena[y].fill(0); rockets.push(new Rocket('row', y)); });
-                cIdx.forEach(x => { arena.forEach(row => row[x] = 0); rockets.push(new Rocket('col', x)); });
+                playEffect(800, 'triangle');
+                rIdx.forEach(y => arena[y].fill(0));
+                cIdx.forEach(x => arena.forEach(row => row[x] = 0));
                 score += (rIdx.length + cIdx.length) * 100;
-                document.getElementById('score').innerText = '🚀 ' + score;
+                document.getElementById('score').innerText = '武林積分: ' + score;
             }
+        }
+
+        function checkGameOver() {
+            // 簡化檢測：如果備選方塊都放不下了
+            let canPlaceAny = false;
+            dockPieces.forEach(p => {
+                if (!p) return;
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (canFit(p.matrix, x, y)) canPlaceAny = true;
+                    }
+                }
+            });
+            if (!canPlaceAny && dockPieces.some(p => p !== null)) {
+                document.getElementById('msg').style.display = 'block';
+            }
+        }
+
+        function canFit(m, x, y) {
+            for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) {
+                if (m[r][c] && (y+r < 0 || y+r >= ROWS || x+c < 0 || x+c >= COLS || arena[y+r][x+c] !== 0)) return false;
+            }
+            return true;
         }
 
         function animate() { drawAll(); requestAnimationFrame(animate); }
