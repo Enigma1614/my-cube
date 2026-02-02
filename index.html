@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>火箭積木：修復版 🚀</title>
+    <title>太空積木：音樂版 🚀</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { background: #0f0c29; color: white; text-align: center; font-family: sans-serif; margin: 0; overflow: hidden; touch-action: none; }
@@ -11,15 +11,18 @@
         canvas { display: block; background: #16213e; border-radius: 8px; }
         #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 20px; height: 160px; background: rgba(255,255,255,0.05); }
         .piece-canvas { background: transparent; touch-action: none; border: 1px dashed rgba(255,255,255,0.1); border-radius: 10px; }
+        #music-btn { position: absolute; top: 10px; right: 10px; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid white; border-radius: 5px; color: white; }
     </style>
 </head>
-<body onclick="initAudio()"> <div id="score">🚀 0</div>
+<body onclick="startEverything()">
+    <div id="score">🚀 0</div>
     <div id="game-container"><canvas id="mainBoard"></canvas></div>
     <div id="dock">
         <canvas id="piece0" class="piece-canvas" onclick="rotatePiece(0)"></canvas>
         <canvas id="piece1" class="piece-canvas" onclick="rotatePiece(1)"></canvas>
         <canvas id="piece2" class="piece-canvas" onclick="rotatePiece(2)"></canvas>
     </div>
+    <div id="music-btn">點擊畫面開啟音樂 🎵</div>
 
     <script>
         const ROWS = 10, COLS = 10;
@@ -29,13 +32,42 @@
         let dockPieces = [null, null, null], draggingPiece = null, currentDropPos = null;
         let rockets = [];
 
-        // --- 音效系統修正 ---
+        // --- 音樂與音效系統 ---
         let audioCtx = null;
-        function initAudio() {
+        let melodyStarted = false;
+
+        function startEverything() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (!melodyStarted) {
+                startBGM();
+                melodyStarted = true;
+                document.getElementById('music-btn').style.display = 'none';
+            }
+        }
+
+        // 簡單的 8-bit 旋律循環 (C 大調)
+        function startBGM() {
+            const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 329.63, 261.63, 392.00]; // 基礎旋律
+            let currentNote = 0;
+            
+            setInterval(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(notes[currentNote], audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.03, audioCtx.currentTime); // 輕微的背景音量
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+                
+                currentNote = (currentNote + 1) % notes.length;
+            }, 500); // 節奏 0.5 秒一拍
         }
 
         function playSound(freq, duration, type) {
@@ -52,16 +84,11 @@
 
         // --- 火箭特效 ---
         class Rocket {
-            constructor(axis, index) {
-                this.axis = axis; this.index = index; this.pos = 0; this.life = 1.0;
-            }
+            constructor(axis, index) { this.axis = axis; this.index = index; this.pos = 0; this.life = 1.0; }
             draw() {
                 boardCtx.fillStyle = "rgba(255, 255, 255, " + this.life + ")";
-                if (this.axis === 'row') {
-                    boardCtx.fillRect(this.pos * boardCanvas.width, this.index * BLOCK_SIZE, boardCanvas.width * 0.2, BLOCK_SIZE);
-                } else {
-                    boardCtx.fillRect(this.index * BLOCK_SIZE, this.pos * boardCanvas.height, BLOCK_SIZE, boardCanvas.height * 0.2);
-                }
+                if (this.axis === 'row') boardCtx.fillRect(this.pos * boardCanvas.width, this.index * BLOCK_SIZE, boardCanvas.width * 0.2, BLOCK_SIZE);
+                else boardCtx.fillRect(this.index * BLOCK_SIZE, this.pos * boardCanvas.height, BLOCK_SIZE, boardCanvas.height * 0.2);
             }
             update() { this.pos += 0.05; this.life -= 0.03; }
         }
@@ -87,17 +114,14 @@
         }
 
         function generatePieceInDock(index) {
-            const mList = [
-                [[1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,1,0],[0,1,1]], 
-                [[1,0],[1,0],[1,1]], [[1,1,1,1]], [[1]]
-            ];
+            const mList = [[[1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[1,1,0],[0,1,1]], [[1,0],[1,0],[1,1]], [[1,1,1,1]], [[1]]];
             const type = Math.floor(Math.random() * mList.length);
             dockPieces[index] = { matrix: mList[type], colorId: Math.floor(Math.random()*7)+1, id: index };
         }
 
         function rotatePiece(i) {
             if (dockPieces[i]) {
-                initAudio();
+                startEverything();
                 const m = dockPieces[i].matrix;
                 dockPieces[i].matrix = m[0].map((_, x) => m.map(row => row[x]).reverse());
                 playSound(440, 0.1);
@@ -149,10 +173,7 @@
             };
             for (let i = 0; i < 3; i++) {
                 document.getElementById('piece' + i).addEventListener('touchstart', (e) => {
-                    if (dockPieces[i]) { 
-                        initAudio();
-                        draggingPiece = JSON.parse(JSON.stringify(dockPieces[i])); 
-                    }
+                    if (dockPieces[i]) { startEverything(); draggingPiece = JSON.parse(JSON.stringify(dockPieces[i])); }
                 });
             }
             window.addEventListener('touchmove', (e) => { if (draggingPiece) currentDropPos = getTouchPos(e); });
@@ -161,13 +182,9 @@
                     if (tryPlace(draggingPiece.matrix, currentDropPos.x, currentDropPos.y, draggingPiece.colorId)) {
                         playSound(200, 0.1, 'square');
                         dockPieces[draggingPiece.id] = null;
-                        
-                        // 修正：檢查是否全空，全空就補滿
                         let empty = true;
                         for(let k=0; k<3; k++) if(dockPieces[k] !== null) empty = false;
-                        if (empty) {
-                            for (let j = 0; j < 3; j++) generatePieceInDock(j);
-                        }
+                        if (empty) for (let j = 0; j < 3; j++) generatePieceInDock(j);
                         sweep();
                     }
                 }
