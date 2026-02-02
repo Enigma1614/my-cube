@@ -7,24 +7,25 @@
     <style>
         body { background: #0a0a0a; color: #f1c40f; text-align: center; font-family: "Microsoft JhengHei", sans-serif; margin: 0; overflow: hidden; touch-action: none; }
         
-        #score { font-size: 36px; margin: 10px; text-shadow: 0 0 10px #f1c40f; font-weight: bold; }
+        #score { font-size: 32px; margin: 10px; text-shadow: 0 0 10px #f1c40f; font-weight: bold; }
         
         #game-container { position: relative; display: inline-block; background: #1a1a1a; padding: 10px; border: 2px solid #444; border-radius: 15px; }
         
         canvas { display: block; background: #000; border-radius: 8px; }
         
-        #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 15px; height: 140px; background: rgba(255,255,255,0.05); }
+        #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 15px; height: 130px; background: rgba(255,255,255,0.05); }
         .piece-canvas { background: transparent; touch-action: none; }
         
-        button { margin-top: 15px; padding: 12px 35px; font-size: 18px; background: #c0392b; color: white; border: none; border-radius: 50px; cursor: pointer; }
+        button { margin-top: 15px; padding: 10px 30px; font-size: 18px; background: #c0392b; color: white; border: none; border-radius: 50px; cursor: pointer; }
         
-        /* 特效文字樣式 */
+        /* 特效文字樣式 (縮小版) */
         .float-text {
             position: absolute;
             top: 45%; left: 50%;
             transform: translate(-50%, -50%) scale(0);
-            font-size: 48px; font-weight: 900;
-            text-shadow: 2px 2px 0 #000, 0 0 20px rgba(255, 255, 255, 0.5);
+            font-size: 40px; /* 預設 Combo 字體大小 */
+            font-weight: 900;
+            text-shadow: 2px 2px 0 #000, 0 0 15px rgba(255, 255, 255, 0.5);
             pointer-events: none; z-index: 50;
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
             opacity: 0; white-space: pre; text-align: center;
@@ -39,7 +40,7 @@
     <div id="game-container">
         <canvas id="mainBoard"></canvas>
         <div id="combo-text" class="float-text" style="color: #ffff00;"></div>
-        <div id="multi-text" class="float-text" style="top: 30%; color: #00ff00; font-size: 56px;"></div>
+        <div id="multi-text" class="float-text" style="top: 25%; color: #00ff00; font-size: 36px;"></div>
     </div>
 
     <div id="msg">棋盤已滿！</div>
@@ -113,7 +114,7 @@
             const el = document.getElementById(elementId);
             el.innerText = text;
             el.style.opacity = '1';
-            el.style.transform = 'translate(-50%, -50%) scale(1.5)';
+            el.style.transform = 'translate(-50%, -50%) scale(1.2)'; // 縮小彈出倍率 (原本 1.5)
             setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translate(-50%, -50%) scale(0)'; }, 1000);
         }
 
@@ -217,7 +218,6 @@
             const totalLines = rIdx.length + cIdx.length;
 
             if (totalLines > 0) {
-                // 1. 觸發煙火
                 rIdx.forEach(y => {
                     for(let x=0; x<COLS; x++) createExplosion(x*BLOCK_SIZE, y*BLOCK_SIZE, COLORS[arena[y][x]]);
                     arena[y].fill(0);
@@ -227,29 +227,20 @@
                     arena.forEach(row => row[x] = 0);
                 });
 
-                // 2. 連擊判定 (Streak)
                 combo++;
                 
-                // 3. 多重消除判定 (Multi-Line)
                 if (totalLines >= 2) {
                     let msg = "";
                     if (totalLines === 2) msg = "雙殺！DOUBLE";
                     else if (totalLines === 3) msg = "三殺！TRIPLE";
                     else if (totalLines >= 4) msg = "暴走！ULTRA";
-                    
-                    // 顯示上方大字
                     showTextEffect('multi-text', msg);
                 }
 
-                // 4. 連擊顯示 (Streak)
                 if (combo > 1) {
                     showTextEffect('combo-text', "COMBO x" + combo + " 🔥");
                 }
 
-                // 5. 分數計算 (含多重消除獎勵)
-                // 基礎: 每行100
-                // 多行獎勵: 行數平方 * 50 (例如消4行就是 16*50 = 800分額外獎勵)
-                // 連擊獎勵: Combo * 50
                 let multiBonus = (totalLines > 1) ? (totalLines * totalLines * 50) : 0;
                 let streakBonus = (combo > 1) ? (combo * 50) : 0;
                 
