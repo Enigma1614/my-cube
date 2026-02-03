@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>貪食蛇 Snake</title>
   <style>
     :root{
@@ -26,6 +26,8 @@
       background: radial-gradient(1200px 600px at 20% 20%, #152853 0%, var(--bg) 55%, #070b14 100%);
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
       color:var(--text);
+      /* 防止手機上雙擊縮放 */
+      touch-action: manipulation; 
     }
     .wrap{
       width:min(900px, 92vw);
@@ -33,6 +35,7 @@
       gap:14px;
       grid-template-columns: 1fr;
       align-items:start;
+      padding-bottom: 20px;
     }
     header{
       display:flex;
@@ -77,7 +80,7 @@
       grid-template-columns: 1fr 280px;
       gap:14px;
     }
-    @media (max-width: 760px){
+    @media (max-width: 850px){
       .panel{ grid-template-columns: 1fr; }
     }
     .game{
@@ -86,6 +89,9 @@
       border-radius:14px;
       box-shadow: var(--shadow);
       padding:14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
     canvas{
       width:100%;
@@ -108,6 +114,7 @@
       padding:14px;
       display:grid;
       gap:12px;
+      height: fit-content;
     }
     .row{
       display:flex;
@@ -139,6 +146,7 @@
       letter-spacing:.2px;
       transition: transform .06s ease, background .2s ease;
       user-select:none;
+      -webkit-tap-highlight-color: transparent;
     }
     button:hover{ background: rgba(255,255,255,.10); }
     button:active{ transform: translateY(1px); }
@@ -155,19 +163,13 @@
       background: rgba(0,0,0,.16);
       border:1px dashed rgba(255,255,255,.12);
     }
-    .toast{
-      margin-top:10px;
-      font-size:12px;
-      color:var(--muted);
-      text-align:center;
-      opacity:.9;
-    }
     .overlay{
       position:absolute;
       inset:0;
       display:grid;
       place-items:center;
       pointer-events:none;
+      z-index: 10;
     }
     .msg{
       pointer-events:none;
@@ -181,7 +183,42 @@
     }
     .msg h2{ margin:0 0 6px; font-size:18px;}
     .msg p{ margin:0; color:var(--muted); font-size:13px; }
-    .rel{ position:relative; }
+    .rel{ position:relative; width: 100%; }
+
+    /* --- 新增：手機虛擬方向鍵樣式 --- */
+    .d-pad {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 240px;
+    }
+    /* 在大螢幕隱藏方向鍵，只在手機平板顯示，或者你想一直顯示也可以拿掉 @media */
+    @media (min-width: 851px) {
+      .d-pad { display: none; }
+    }
+    .d-btn {
+      aspect-ratio: 1.2 / 1;
+      font-size: 24px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .d-btn:active {
+      background: rgba(76,201,240,0.3);
+      border-color: var(--accent);
+    }
+    /* 讓按鈕位置排成十字 */
+    .d-up { grid-column: 2; grid-row: 1; }
+    .d-left { grid-column: 1; grid-row: 2; }
+    .d-down { grid-column: 2; grid-row: 2; }
+    .d-right { grid-column: 3; grid-row: 2; }
+
   </style>
 </head>
 <body>
@@ -196,15 +233,23 @@
     </header>
 
     <div class="panel">
-      <section class="game rel">
-        <canvas id="c" width="600" height="600" aria-label="snake-canvas"></canvas>
-        <div class="overlay" id="overlay">
-          <div class="msg" id="msg">
-            <h2>按下 空白鍵 開始</h2>
-            <p>方向鍵 / WASD 控制，R 重新開始</p>
+      <section class="game">
+        <div class="rel">
+          <canvas id="c" width="600" height="600" aria-label="snake-canvas"></canvas>
+          <div class="overlay" id="overlay">
+            <div class="msg" id="msg">
+              <h2>按下 空白鍵 開始</h2>
+              <p>方向鍵 / WASD 控制</p>
+            </div>
           </div>
         </div>
-        <div class="toast">Tip：手機可滑動改方向；也可點右側「開始/暫停」</div>
+        
+        <div class="d-pad">
+          <button class="d-btn d-up" id="btnUp">▲</button>
+          <button class="d-btn d-left" id="btnLeft">◀</button>
+          <button class="d-btn d-down" id="btnDown">▼</button>
+          <button class="d-btn d-right" id="btnRight">▶</button>
+        </div>
       </section>
 
       <aside class="side">
@@ -225,18 +270,19 @@
         </div>
 
         <div class="btns">
-          <button class="primary" id="toggle">開始</button>
+          <button class="primary" id="toggle">開始 / 暫停</button>
           <button id="restart">重新開始</button>
         </div>
 
         <div class="hint">
-          <b>操作：</b><br/>
+          <b>電腦操作：</b><br/>
           • 空白鍵：開始/暫停<br/>
-          • 方向鍵 或 WASD：移動<br/>
+          • 方向鍵：移動<br/>
           • R：重新開始<br/>
           <br/>
-          <b>規則：</b><br/>
-          吃到紅色食物加分變長，撞牆或咬到自己就結束。
+          <b>手機操作：</b><br/>
+          • 點擊畫面按鈕移動<br/>
+          • 或直接在畫面上滑動<br/>
         </div>
       </aside>
     </div>
@@ -261,16 +307,22 @@
   const btnToggle  = document.getElementById('toggle');
   const btnRestart = document.getElementById('restart');
 
+  // 取得新的方向鍵元素
+  const btnUp = document.getElementById('btnUp');
+  const btnDown = document.getElementById('btnDown');
+  const btnLeft = document.getElementById('btnLeft');
+  const btnRight = document.getElementById('btnRight');
+
   const LS_KEY = 'snake_best_score_v1';
   let best = Number(localStorage.getItem(LS_KEY) || 0);
   elBest.textContent = best;
 
   // game state
-  let cell = Number(cellSlider.value);        // px per grid cell
+  let cell = Number(cellSlider.value);
   let cols = Math.floor(canvas.width / cell);
   let rows = Math.floor(canvas.height / cell);
 
-  let speed = Number(speedSlider.value);      // ticks per second
+  let speed = Number(speedSlider.value);
   let lastTime = 0;
   let acc = 0;
 
@@ -302,7 +354,7 @@
     placeFood();
     gameOver = false;
     updateStateText();
-    showOverlay('按下 空白鍵 開始', '方向鍵 / WASD 控制，R 重新開始');
+    showOverlay('準備開始', '電腦按空白鍵，手機按方向鍵開始');
     draw();
   }
 
@@ -314,14 +366,13 @@
   }
 
   function placeFood(){
-    // place food on an empty cell
     const occupied = new Set(snake.map(p => `${p.x},${p.y}`));
     let x,y, tries = 0;
     do{
       x = Math.floor(Math.random()*cols);
       y = Math.floor(Math.random()*rows);
       tries++;
-      if(tries > 200) break; // fallback
+      if(tries > 200) break;
     } while(occupied.has(`${x},${y}`));
     food = {x,y};
   }
@@ -350,7 +401,6 @@
   }
 
   function step(){
-    // apply buffered direction change, prevent reversing
     if((nextDir.x !== -dir.x) || (nextDir.y !== -dir.y)){
       dir = {...nextDir};
     }
@@ -359,25 +409,21 @@
     const nx = head.x + dir.x;
     const ny = head.y + dir.y;
 
-    // collision with wall
     if(nx < 0 || nx >= cols || ny < 0 || ny >= rows){
       endGame();
       return;
     }
 
-    // collision with self (allow moving into tail only if tail will move away)
     const tail = snake[0];
     const willEat = (nx === food.x && ny === food.y);
     const bodySet = new Set(snake.map(p => `${p.x},${p.y}`));
     if(bodySet.has(`${nx},${ny}`)){
-      // if hitting tail and not eating, it's okay because tail shifts
       if(!(nx === tail.x && ny === tail.y && !willEat)){
         endGame();
         return;
       }
     }
 
-    // move
     snake.push({x:nx, y:ny});
 
     if(willEat){
@@ -398,16 +444,12 @@
     running = false;
     gameOver = true;
     updateStateText();
-    showOverlay('Game Over', '按 R 重新開始，或按「開始」再來一局');
+    showOverlay('Game Over', '按 R 或「重新開始」再來一局');
   }
 
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    // draw food
     drawCell(food.x, food.y, '#ff4d6d', true);
-
-    // draw snake
     for(let i=0; i<snake.length; i++){
       const p = snake[i];
       const t = i / Math.max(1, (snake.length-1));
@@ -444,7 +486,6 @@
     ctx.closePath();
     ctx.fillStyle = fill;
     ctx.fill();
-    // subtle highlight
     ctx.strokeStyle = 'rgba(255,255,255,.10)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -463,13 +504,10 @@
     return { r:(bigint>>16)&255, g:(bigint>>8)&255, b:bigint&255 };
   }
 
-  // main loop (fixed timestep via accumulator)
   function loop(ts){
     const dt = (ts - lastTime) / 1000 || 0;
     lastTime = ts;
-
     const targetStep = 1 / speed;
-
     if(running && !gameOver){
       acc += dt;
       while(acc >= targetStep){
@@ -477,12 +515,13 @@
         acc -= targetStep;
       }
     }
-
     draw();
     requestAnimationFrame(loop);
   }
 
-  // input: keyboard
+  // --- Controls Logic ---
+
+  // Keyboard
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if(k === ' '){
@@ -494,25 +533,42 @@
       reset();
       return;
     }
-    // WASD / arrows
     if(k === 'arrowup' || k === 'w') setDir(0,-1);
     else if(k === 'arrowdown' || k === 's') setDir(0,1);
     else if(k === 'arrowleft' || k === 'a') setDir(-1,0);
     else if(k === 'arrowright' || k === 'd') setDir(1,0);
   });
 
+  // Helper to change direction
   function setDir(x,y){
-    // buffer direction; prevent reverse handled in step()
-    nextDir = {x,y};
+    // 防止尚未開始時無法設定方向
     if(!running && !gameOver){
-      // allow "first move" to start the game
       running = true;
       updateStateText();
       hideOverlay();
     }
+    // 防止反向移動
+    // 這裡我們直接設定 nextDir，實際判定反向的邏輯在 step() 函式開頭
+    nextDir = {x,y};
   }
 
-  // UI controls
+  // Touch UI Buttons (D-Pad)
+  // 使用 touchstart + preventDefault 可防止雙擊縮放延遲與畫面捲動
+  function bindTouch(btn, x, y) {
+    const handler = (e) => {
+      if(e.cancelable) e.preventDefault(); 
+      setDir(x,y);
+    };
+    btn.addEventListener('touchstart', handler, {passive:false});
+    btn.addEventListener('mousedown', handler); // 支援滑鼠點擊測試
+  }
+
+  bindTouch(btnUp, 0, -1);
+  bindTouch(btnDown, 0, 1);
+  bindTouch(btnLeft, -1, 0);
+  bindTouch(btnRight, 1, 0);
+
+  // UI Settings
   speedSlider.addEventListener('input', () => {
     speed = Number(speedSlider.value);
     speedVal.textContent = speed;
@@ -525,7 +581,7 @@
   btnToggle.addEventListener('click', toggle);
   btnRestart.addEventListener('click', () => reset());
 
-  // touch swipe support
+  // Swipe Support (Original) - 保留滑動功能
   let touchStart = null;
   canvas.addEventListener('touchstart', (e) => {
     const t = e.changedTouches[0];
@@ -538,7 +594,8 @@
     const dx = t.clientX - touchStart.x;
     const dy = t.clientY - touchStart.y;
     const adx = Math.abs(dx), ady = Math.abs(dy);
-    if(Math.max(adx,ady) < 20) return;
+    // 門檻提高一點，避免誤觸
+    if(Math.max(adx,ady) < 30) return;
 
     if(adx > ady){
       setDir(dx > 0 ? 1 : -1, 0);
@@ -548,7 +605,7 @@
     touchStart = null;
   }, {passive:true});
 
-  // init
+  // Init
   speedVal.textContent = speed;
   updateGrid();
   reset();
