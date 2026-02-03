@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>極限貪食蛇 Pro</title>
+  <title>極限貪食蛇 Pro (精細版)</title>
   <style>
-    :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.3); }
+    :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.2); }
     body {
       margin: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       background: radial-gradient(circle at center, #152853 0%, var(--bg) 90%);
@@ -30,7 +30,7 @@
     .home-btn:active { background: var(--accent); color: #000; }
     .score-box { font-size: 20px; font-weight: 800; color: var(--accent); font-family: monospace; }
 
-    /* 遊戲主體容器 (彈性伸縮) */
+    /* 遊戲主體容器 */
     .main-area {
         flex-grow: 1; width: 100%; display: flex; flex-direction: column; 
         align-items: center; justify-content: center; position: relative;
@@ -47,16 +47,15 @@
     
     canvas {
       display: block;
-      /* CSS 網格背景 (與 JS 邏輯對齊) */
+      /* CSS 網格背景 */
       background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
       background-size: var(--cell) var(--cell);
     }
 
-    /* 修正後的半透明遮罩 */
     #overlay {
       position: absolute; inset: 0; 
-      background: rgba(0, 0, 0, 0.6); /* 半透明，看得到後面 */
-      backdrop-filter: blur(3px); /* 輕微模糊 */
+      background: rgba(0, 0, 0, 0.6); 
+      backdrop-filter: blur(4px); 
       display: flex; flex-direction: column; justify-content: center; align-items: center;
       z-index: 10;
     }
@@ -72,17 +71,18 @@
     }
     button#startBtn:active { transform: scale(0.95); }
 
-    /* 底部控制器 (手機顯示，電腦隱藏) */
+    /* 底部控制器 */
     .d-pad {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-      width: 150px; margin-bottom: 20px; flex-shrink: 0;
+      width: 160px; margin-bottom: 30px; flex-shrink: 0;
     }
     .d-btn {
       aspect-ratio: 1; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 22px; cursor: pointer;
+      color: #fff; font-size: 24px; cursor: pointer;
+      backdrop-filter: blur(5px);
     }
-    .d-btn:active { background: rgba(76, 201, 240, 0.5); border-color: var(--accent); }
+    .d-btn:active { background: rgba(76, 201, 240, 0.5); border-color: var(--accent); transform: scale(0.9); }
     
     @media (min-width: 800px) { .d-pad { display: none; } }
   </style>
@@ -91,7 +91,7 @@
 
   <header>
     <div class="header-left">
-        <a href="index.html" class="home-btn">🏠</a>
+        <a href="#" class="home-btn">🏠</a>
         <div style="font-weight:900; letter-spacing:1px; margin-left:10px;">SNAKE <span style="color:var(--accent)">PRO</span></div>
     </div>
     <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
@@ -123,73 +123,105 @@
   const scoreEl = document.getElementById('scoreVal');
   const overlay = document.getElementById('overlay');
   
-  let audioCtx, cols = 20, rows = 20, cell, dpr;
-  let snake = [], food = {}, dir = {x:0, y:-1}, nextDir = {x:0, y:-1};
-  let score = 0, isRunning = false;
+  let audioCtx;
+  // 修改：將格子數從 20 增加到 40，讓蛇看起來更細緻
+  const GRID_SIZE = 40; 
+  let cols = GRID_SIZE, rows = GRID_SIZE, cell, dpr;
   
+  let snake = [], food = {};
+  let dir = {x:0, y:-1}; // 當前實際移動方向
+  let inputQueue = [];   // 修改：使用隊列來緩存按鍵，解決「快速自殺」bug
+  let score = 0, isRunning = false;
+  let loopId = null;     // 用於取消 setTimeout
+
   // 音效
   function playNote(f, type='sine', d=0.1) {
     if(!audioCtx || audioCtx.state !== 'running') return;
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + d);
+    try {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    } catch(e){}
   }
 
-  // 畫面適配與初始化
+  // 畫面適配
   function setupGrid() {
     dpr = window.devicePixelRatio || 1;
-    // 計算可用的最大寬度 (保留上下邊距)
-    const maxW = Math.min(window.innerWidth * 0.95, 500);
-    const maxH = window.innerHeight * 0.6; // 留空間給控制器
+    // 電腦版最大限制稍微放寬
+    const maxW = Math.min(window.innerWidth * 0.95, 600);
+    const maxH = window.innerHeight * 0.65;
     const size = Math.min(maxW, maxH);
     
-    // 設定容器尺寸
-    container.style.width = size + "px";
-    container.style.height = size + "px";
+    // 確保大小是偶數以防模糊
+    const finalSize = Math.floor(size / 2) * 2;
+
+    container.style.width = finalSize + "px";
+    container.style.height = finalSize + "px";
     
-    cell = size / cols;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+    cell = finalSize / cols;
+    canvas.width = finalSize * dpr;
+    canvas.height = finalSize * dpr;
     ctx.scale(dpr, dpr);
     
-    // 更新 CSS 變數以對齊網格
     document.documentElement.style.setProperty('--cell', cell + 'px');
     
-    if(!isRunning) draw(); // 視窗改變時重畫，確保畫面不消失
+    if(!isRunning && snake.length > 0) draw(); 
   }
   window.addEventListener('resize', setupGrid);
 
   function spawnFood() {
-    food = { x: Math.floor(Math.random()*cols), y: Math.floor(Math.random()*rows), type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') };
-    // 避免生成在蛇身上
-    if(snake.some(p => p.x === food.x && p.y === food.y)) spawnFood();
+    let valid = false;
+    while(!valid) {
+        food = { 
+            x: Math.floor(Math.random()*cols), 
+            y: Math.floor(Math.random()*rows), 
+            type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') 
+        };
+        // 確保食物不生成在蛇身上
+        valid = !snake.some(p => p.x === food.x && p.y === food.y);
+    }
   }
 
   function reset() {
     score = 0; scoreEl.textContent = score;
     const mid = Math.floor(cols/2);
-    // 預設蛇的位置
-    snake = [{x:mid, y:mid}, {x:mid, y:mid+1}, {x:mid, y:mid+2}];
-    dir = {x:0, y:-1}; nextDir = {x:0, y:-1};
+    // 初始蛇長度設為 5，因為格子變小了，長一點比較好對準
+    snake = [];
+    for(let i=0; i<5; i++) snake.push({x:mid, y:mid+i});
+    
+    dir = {x:0, y:-1}; 
+    inputQueue = []; // 清空指令
     spawnFood();
     isRunning = false;
+    if(loopId) clearTimeout(loopId);
+    
     overlay.style.display = 'flex';
     document.getElementById('m-title').innerText = "READY?";
     
-    // 關鍵：重置後立即繪製一次，讓玩家透過半透明視窗看到蛇
     draw();
   }
 
   function step() {
     if(!isRunning) return;
-    dir = nextDir;
+
+    // 1. 從隊列中取出下一個有效的方向指令
+    // 解決手速過快導致蛇頭 180 度迴轉自殺的 Bug
+    if(inputQueue.length > 0) {
+        const next = inputQueue.shift();
+        // 再次檢查：雖然輸入時檢查過，但為了保險起見
+        if(next.x !== -dir.x && next.y !== -dir.y) {
+            dir = next;
+        }
+    }
+
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
     
     // 碰撞檢測
     if(head.x<0 || head.x>=cols || head.y<0 || head.y>=rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
-      playNote(150, 'sawtooth', 0.5); 
+      playNote(100, 'sawtooth', 0.5); 
       isRunning = false;
       document.getElementById('m-title').innerText = "GAME OVER";
       overlay.style.display = 'flex';
@@ -200,76 +232,116 @@
     
     if(head.x===food.x && head.y===food.y) {
       if(food.type==='star') { score+=30; playNote(800, 'square'); }
-      else if(food.type==='pill') { score+=5; playNote(400, 'sine'); snake.pop(); snake.pop(); }
+      else if(food.type==='pill') { 
+          score+=5; playNote(400, 'sine'); 
+          // 修改：縮短機制增加保護，最少保留 3 格
+          if(snake.length > 4) { snake.pop(); snake.pop(); }
+          else snake.pop(); // 太短就只移除尾巴(不增長)
+      }
       else { score+=10; playNote(600, 'triangle'); }
-      scoreEl.textContent = score; spawnFood();
+      
+      scoreEl.textContent = score; 
+      spawnFood();
     } else {
       snake.pop();
     }
-    // 速度隨分數增加
-    setTimeout(step, Math.max(70, 150 - score/2));
+
+    // 繪製
+    draw();
+    
+    // 速度計算：格子變多了，基礎速度要加快一點 (從 100ms 開始)
+    // 難度曲線平滑化
+    const speed = Math.max(40, 90 - Math.sqrt(score) * 4);
+    loopId = setTimeout(step, speed);
   }
 
   function draw() {
-    ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr); // 清除畫布
+    ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr);
     
     // 畫食物
-    const fx=food.x*cell, fy=food.y*cell, p=cell*0.15, s=cell-p*2;
+    const fx=food.x*cell, fy=food.y*cell;
+    // 讓食物稍微縮小一點點，看起來更精緻
+    const p=cell*0.15, s=cell-p*2;
+    
     ctx.fillStyle = food.type==='star'?'#ffcf33':(food.type==='pill'?'#4cc9f0':'#ff4d6d');
     ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
-    ctx.beginPath(); ctx.roundRect(fx+p, fy+p, s, s, s/2); ctx.fill();
+    
+    ctx.beginPath(); 
+    if(food.type === 'star') {
+        // 簡單畫圓形代表星星/特殊物，區別度更高
+        ctx.arc(fx+cell/2, fy+cell/2, s/2, 0, Math.PI*2);
+    } else {
+        ctx.roundRect(fx+p, fy+p, s, s, 4); 
+    }
+    ctx.fill();
     ctx.shadowBlur = 0;
 
     // 畫蛇
     snake.forEach((p, i) => {
-      ctx.fillStyle = i===0 ? '#fff' : '#7CFF6B';
+      // 漸層色蛇身
+      ctx.fillStyle = i===0 ? '#fff' : (i%2===0 ? '#7CFF6B' : '#5CE64A');
       const x=p.x*cell, y=p.y*cell;
-      ctx.beginPath(); ctx.roundRect(x+1, y+1, cell-2, cell-2, 4); ctx.fill();
       
-      if(i===0) { // 畫眼睛，增加方向感
+      // 讓蛇身之間有一點點縫隙，看起來是一節一節的
+      const gap = 0.5;
+      ctx.beginPath(); 
+      ctx.roundRect(x+gap, y+gap, cell-gap*2, cell-gap*2, i===0?4:2); 
+      ctx.fill();
+      
+      // 蛇眼
+      if(i===0) { 
         ctx.fillStyle='#000';
-        const eyeOff = cell*0.2;
-        const eyeSize = cell*0.15;
+        const eyeOff = cell*0.25;
+        const eyeSize = cell*0.12;
         const cx = x + cell/2, cy = y + cell/2;
-        // 根據方向調整眼睛位置
         ctx.beginPath(); 
         ctx.arc(cx + dir.y*eyeOff + dir.x*eyeOff, cy + dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2); 
         ctx.arc(cx - dir.y*eyeOff + dir.x*eyeOff, cy - dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2);
         ctx.fill();
       }
     });
-    
-    if(isRunning) requestAnimationFrame(draw);
   }
 
-  const input = (x,y) => { 
-    if(x!==-dir.x && y!==-dir.y) nextDir={x,y}; 
+  const handleInput = (x, y) => { 
+    if(!isRunning) return;
+    
+    // 獲取預期最後的方向 (如果有緩存指令，就以緩存的最後一個為準)
+    const lastPendingDir = inputQueue.length > 0 ? inputQueue[inputQueue.length-1] : dir;
+    
+    // 防止反向 (例如正在往右，不能按左)
+    if(x !== -lastPendingDir.x && y !== -lastPendingDir.y) {
+        // 防止重複輸入相同方向
+        if(x !== lastPendingDir.x || y !== lastPendingDir.y) {
+             // 限制緩衝區大小，避免按太快積累太多操作
+            if(inputQueue.length < 3) inputQueue.push({x, y});
+        }
+    }
   };
   
   // 按鈕綁定
-  document.getElementById('c-up').onclick = () => input(0,-1);
-  document.getElementById('c-down').onclick = () => input(0,1);
-  document.getElementById('c-left').onclick = () => input(-1,0);
-  document.getElementById('c-right').onclick = () => input(1,0);
+  document.getElementById('c-up').onclick = () => handleInput(0,-1);
+  document.getElementById('c-down').onclick = () => handleInput(0,1);
+  document.getElementById('c-left').onclick = () => handleInput(-1,0);
+  document.getElementById('c-right').onclick = () => handleInput(1,0);
   
   // 鍵盤綁定
   window.addEventListener('keydown', e => {
-      if(e.key==='ArrowUp' || e.key==='w') input(0,-1);
-      if(e.key==='ArrowDown' || e.key==='s') input(0,1);
-      if(e.key==='ArrowLeft' || e.key==='a') input(-1,0);
-      if(e.key==='ArrowRight' || e.key==='d') input(1,0);
+      if(['ArrowUp','w','W'].includes(e.key)) handleInput(0,-1);
+      if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
+      if(['ArrowLeft','a','A'].includes(e.key)) handleInput(-1,0);
+      if(['ArrowRight','d','D'].includes(e.key)) handleInput(1,0);
       if(e.code==='Space' && !isRunning) document.getElementById('startBtn').click();
   });
 
-  // 滑動操作 (Swipe)
+  // 滑動操作
   let sx=0, sy=0;
   canvas.addEventListener('touchstart', e => { sx=e.touches[0].clientX; sy=e.touches[0].clientY; }, {passive:false});
   canvas.addEventListener('touchend', e => {
     const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
     if(Math.abs(dx) > Math.abs(dy)) { 
-        if(Math.abs(dx)>30) input(dx>0?1:-1, 0); 
+        if(Math.abs(dx)>30) handleInput(dx>0?1:-1, 0); 
     } else { 
-        if(Math.abs(dy)>30) input(0, dy>0?1:-1); 
+        if(Math.abs(dy)>30) handleInput(0, dy>0?1:-1); 
     }
   });
 
@@ -277,9 +349,15 @@
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(audioCtx.state === 'suspended') audioCtx.resume();
     overlay.style.display = 'none';
-    isRunning = true; 
-    draw(); // 啟動繪圖迴圈
-    step(); // 啟動邏輯迴圈
+    if(!isRunning) {
+        isRunning = true; 
+        step();
+    } else {
+        // 重來
+        reset();
+        isRunning = true;
+        step();
+    }
   };
 
   setupGrid();
