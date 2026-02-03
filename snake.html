@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>極限貪食蛇：全螢幕適配版</title>
+  <title>極限貪食蛇：絕對修正版</title>
   <style>
-    :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.2); }
+    :root { --bg: #0b1220; --accent: #4cc9f0; }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
       background: radial-gradient(circle at center, #152853 0%, var(--bg) 90%);
@@ -14,11 +14,11 @@
       display: flex; flex-direction: column;
     }
     
-    /* 1. 頂部區塊 (固定高度) */
+    /* 1. 頂部資訊列 */
     header {
       padding: 0 15px; 
       display: flex; justify-content: space-between; align-items: center;
-      background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(255,255,255,0.1);
       flex-shrink: 0; height: 50px; box-sizing: border-box; z-index: 20;
     }
     .header-left { display: flex; align-items: center; gap: 10px; }
@@ -30,35 +30,23 @@
     }
     .score-box { font-size: 18px; font-weight: 800; color: var(--accent); font-family: monospace; }
 
-    /* 2. 遊戲主區域 (彈性伸縮，佔滿剩餘空間) */
+    /* 2. 遊戲主區域 */
     .game-wrapper {
         flex: 1; /* 吃掉剩下的所有高度 */
         width: 100%;
         display: flex; align-items: center; justify-content: center;
         position: relative;
-        overflow: hidden;
-        padding: 10px; /* 留一點邊距 */
-        box-sizing: border-box;
+        background: #000; /* 畫布背景黑 */
     }
 
-    /* 畫布容器：不設固定寬高，由 JS 動態決定 */
-    .game-container { 
-        position: relative; 
-        border-radius: 4px; overflow: hidden; 
-        box-shadow: 0 0 20px rgba(76, 201, 240, 0.15);
-        border: 2px solid rgba(255,255,255,0.15);
-        background: #061022;
-        z-index: 1;
-    }
-    
+    /* 畫布本身 */
     canvas {
       display: block;
-      /* 網格線 */
-      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-      /* background-size 由 JS 動態設定 */
+      background: #061022;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }
 
-    /* UI 層 */
+    /* UI 層 (重新開始按鈕) */
     #ui-layer {
       position: absolute; inset: 0; 
       display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -66,33 +54,35 @@
     }
 
     h2 { 
-      margin: 0 0 15px 0; font-size: 36px; color: #ff4d6d; 
-      text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
-      display: none; pointer-events: auto;
+      margin: 0 0 20px 0; font-size: 40px; color: #ff4d6d; 
+      text-shadow: 0 0 20px rgba(255, 0, 0, 1);
+      display: none; pointer-events: auto; font-weight: 900;
     }
     
     button#startBtn {
-      padding: 12px 40px; font-size: 18px; font-weight: bold;
+      padding: 15px 50px; font-size: 22px; font-weight: bold;
       background: var(--accent); border: none; border-radius: 50px;
-      color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
+      color: #000; cursor: pointer; box-shadow: 0 0 30px var(--accent);
       pointer-events: auto; transition: transform 0.1s;
+      display: block;
     }
     button#startBtn:active { transform: scale(0.95); }
 
-    /* 3. 底部搖桿區 (固定高度) */
+    /* 3. 底部搖桿區 */
     .controls-area {
         height: 180px; width: 100%;
         display: flex; justify-content: center; align-items: center;
-        background: rgba(0,0,0,0.15);
-        flex-shrink: 0; /* 禁止被壓縮 */
+        background: rgba(255,255,255,0.05);
+        border-top: 1px solid rgba(255,255,255,0.1);
+        flex-shrink: 0; 
         position: relative;
         z-index: 50;
     }
 
     .joystick-base {
         width: 120px; height: 120px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 2px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         position: relative;
         display: flex; justify-content: center; align-items: center;
@@ -108,13 +98,7 @@
         transition: transform 0.08s ease-out;
     }
 
-    .joy-arrow { 
-        position: absolute; color: rgba(255,255,255,0.2); 
-        font-size: 14px; font-weight: bold; pointer-events: none;
-    }
-    .ja-up { top: 8px; } .ja-down { bottom: 8px; } 
-    .ja-left { left: 8px; } .ja-right { right: 8px; }
-
+    /* 電腦版隱藏搖桿 */
     @media (min-width: 800px) { .controls-area { display: none; } }
   </style>
 </head>
@@ -128,22 +112,16 @@
     <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
   </header>
 
-  <div class="game-wrapper">
-      <div class="game-container" id="gContainer">
-        <canvas id="snakeCanvas"></canvas>
-        <div id="ui-layer">
+  <div class="game-wrapper" id="gameWrapper">
+      <canvas id="snakeCanvas"></canvas>
+      <div id="ui-layer">
           <h2 id="msg-title">GAME OVER</h2>
           <button id="startBtn">START GAME</button>
-        </div>
       </div>
   </div>
 
   <div class="controls-area">
       <div class="joystick-base" id="joyBase">
-          <div class="joy-arrow ja-up">▲</div>
-          <div class="joy-arrow ja-down">▼</div>
-          <div class="joy-arrow ja-left">◀</div>
-          <div class="joy-arrow ja-right">▶</div>
           <div class="joystick-knob" id="joyKnob"></div>
       </div>
   </div>
@@ -152,21 +130,22 @@
 (() => {
   const canvas = document.getElementById('snakeCanvas');
   const ctx = canvas.getContext('2d');
-  const container = document.getElementById('gContainer');
+  const wrapper = document.getElementById('gameWrapper');
   const scoreEl = document.getElementById('scoreVal');
   const msgTitle = document.getElementById('msg-title');
   const startBtn = document.getElementById('startBtn');
   
-  // 遊戲核心變數
-  let cols, rows;   // 現在這是動態計算的，不是固定的
-  let cellSize = 18; // 每個格子的大小 (px)，會根據解析度微調
-  let dpr;
+  // 核心參數
+  let cols, rows;
+  const TARGET_CELL_SIZE = 20; // 目標格子大小
+  let cellSize = TARGET_CELL_SIZE;
+  let dpr = window.devicePixelRatio || 1;
   
   let snake = [], food = {};
   let dir = {x:0, y:-1}; 
   let inputQueue = [];
   let score = 0, isRunning = false;
-  let gameLoopTimeout = null;
+  let gameLoopId;
   let audioCtx;
 
   // 音效
@@ -183,71 +162,63 @@
     } catch(e){}
   }
 
-  // === 關鍵修正：動態網格計算 ===
+  // === 關鍵修正：畫布尺寸計算 ===
   function resize() {
-    dpr = window.devicePixelRatio || 1;
+    // 1. 取得容器實際像素大小
+    const availW = wrapper.clientWidth;
+    const availH = wrapper.clientHeight;
     
-    // 1. 取得 wrapper 目前可用的寬高 (這是最準確的剩餘空間)
-    const wrapper = document.querySelector('.game-wrapper');
-    const availW = wrapper.clientWidth - 20; // 扣掉 padding
-    const availH = wrapper.clientHeight - 20;
+    // 2. 計算能放多少格 (無條件捨去，保證不超出)
+    cols = Math.floor(availW / TARGET_CELL_SIZE);
+    rows = Math.floor(availH / TARGET_CELL_SIZE);
     
-    // 2. 設定目標格子大小 (例如約 20px 一格)
-    const targetCellSize = 20; 
-    
-    // 3. 算出橫向和直向最多能放幾格
-    cols = Math.floor(availW / targetCellSize);
-    rows = Math.floor(availH / targetCellSize);
-    
-    // 4. 反推準確的畫布大小 (必須是格子的整數倍，才不會有半格)
-    const finalW = cols * targetCellSize;
-    const finalH = rows * targetCellSize;
-    
-    // 5. 設定 CSS 尺寸
-    container.style.width = finalW + "px";
-    container.style.height = finalH + "px";
-    
-    // 6. 設定 Canvas 解析度
-    canvas.width = finalW * dpr;
-    canvas.height = finalH * dpr;
-    ctx.scale(dpr, dpr);
-    
-    // 7. 更新實際使用的格子大小 (給繪圖用)
-    cellSize = targetCellSize;
-    document.documentElement.style.setProperty('--cell', cellSize + 'px');
-    
-    // 8. 如果在暫停狀態，重畫畫面以免黑屏
-    if(!isRunning && snake.length > 0) draw();
-  }
-  
-  // 監聽螢幕旋轉或調整大小
-  window.addEventListener('resize', () => {
-    resize();
-    // 如果重設大小時正在玩，可能需要暫停或重置，這裡選擇重畫
-    if(!isRunning) draw(); 
-  });
+    // 避免太小
+    if(cols < 5) cols = 5;
+    if(rows < 5) rows = 5;
 
-  // 保證食物生成
+    // 3. 反推畫布像素大小 (這就是蛇活動的邊界)
+    const cssW = cols * TARGET_CELL_SIZE;
+    const cssH = rows * TARGET_CELL_SIZE;
+    
+    // 4. 設定 Canvas 顯示尺寸 (CSS)
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    
+    // 5. 設定 Canvas 繪圖解析度 (Pixel)
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    
+    // 6. 縮放繪圖環境，讓邏輯座標 1 = 1格
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // 重置矩陣
+    ctx.scale(dpr, dpr);
+
+    cellSize = TARGET_CELL_SIZE;
+    
+    // 重置遊戲位置 (如果還沒開始)
+    if(!isRunning) initGame();
+    else draw(); // 如果正在玩，重畫以適應新網格(可能會截斷蛇，但至少不會跑版)
+  }
+
+  // 生成食物
   function spawnFood() {
     let valid = false;
-    let attempts = 0;
-    let newFood = {};
-
-    while(!valid && attempts < 100) {
-        newFood = { 
-            x: Math.floor(Math.random()*cols), 
-            y: Math.floor(Math.random()*rows), 
-            type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') 
-        };
-        valid = !snake.some(p => p.x === newFood.x && p.y === newFood.y);
-        attempts++;
+    // 暴力搜尋法：確保一定有位置
+    // 先嘗試隨機 50 次
+    for(let i=0; i<50; i++) {
+        let tx = Math.floor(Math.random() * cols);
+        let ty = Math.floor(Math.random() * rows);
+        if(!snake.some(p => p.x === tx && p.y === ty)) {
+            food = {x: tx, y: ty, type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal')};
+            valid = true;
+            break;
+        }
     }
-
-    if (!valid) {
+    // 如果隨機失敗，直接掃描
+    if(!valid) {
         for(let r=0; r<rows; r++) {
             for(let c=0; c<cols; c++) {
-                if (!snake.some(p => p.x === c && p.y === r)) {
-                    newFood = { x: c, y: r, type: 'normal' };
+                if(!snake.some(p => p.x === c && p.y === r)) {
+                    food = {x: c, y: r, type: 'normal'};
                     valid = true;
                     break;
                 }
@@ -255,36 +226,23 @@
             if(valid) break;
         }
     }
-
-    if (valid) food = newFood;
   }
 
+  // 初始化狀態
   function initGame() {
-    resize(); // 確保開始前尺寸是對的
-    score = 0; scoreEl.textContent = score;
-    
-    // 蛇出生在中間
+    score = 0; scoreEl.textContent = "0";
+    snake = [];
     const midX = Math.floor(cols/2);
     const midY = Math.floor(rows/2);
-    
-    snake = [];
-    // 初始 5 格
+    // 產生 5 格蛇
     for(let i=0; i<5; i++) {
-        // 確保初始蛇身不會超出下方邊界 (雖然機率很低)
-        if (midY + i < rows) {
-            snake.push({x: midX, y: midY + i});
-        }
+        // 確保不超界
+        if(midY + i < rows) snake.push({x: midX, y: midY + i});
     }
-    
     dir = {x:0, y:-1}; 
     inputQueue = [];
-    
-    spawnFood(); 
-    
-    if(gameLoopTimeout) clearTimeout(gameLoopTimeout);
-    isRunning = false;
-    
-    draw(); 
+    spawnFood();
+    draw(); // 畫第一幀
   }
 
   function startGame() {
@@ -296,21 +254,39 @@
     
     initGame();
     isRunning = true;
-    update();
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
   }
 
   function gameOver() {
-    playNote(100, 'sawtooth', 0.5); 
     isRunning = false;
-    
+    playNote(100, 'sawtooth', 0.5);
     msgTitle.style.display = 'block';
     startBtn.innerText = "TRY AGAIN";
     startBtn.style.display = 'block';
   }
 
-  function update() {
-    if(!isRunning) return;
+  let lastTime = 0;
+  let moveInterval = 100; // 初始速度 ms
 
+  function gameLoop(timestamp) {
+    if(!isRunning) return;
+    
+    // 計算速度 (分數越高越快，最低 50ms)
+    moveInterval = Math.max(50, 100 - Math.sqrt(score) * 4);
+
+    if (timestamp - lastTime > moveInterval) {
+        update();
+        lastTime = timestamp;
+    }
+    
+    // 繪圖不用降頻，保持 60fps 流暢感
+    draw(); 
+    requestAnimationFrame(gameLoop);
+  }
+
+  function update() {
+    // 處理輸入
     if(inputQueue.length > 0) {
         const next = inputQueue.shift();
         if(next.x !== -dir.x && next.y !== -dir.y) dir = next;
@@ -318,111 +294,138 @@
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-    // === 邊界檢查 (使用動態計算的 cols 和 rows) ===
-    // 這裡保證了蛇絕對不會跑出畫面
-    if(head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
-      gameOver();
-      return;
+    // === 嚴格邊界檢查 ===
+    // 只要 head.x 或 head.y 超出 0 ~ cols/rows 範圍，直接判死
+    if(head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows) {
+        gameOver();
+        return;
+    }
+    
+    // 撞身體檢查
+    if(snake.some(p => p.x === head.x && p.y === head.y)) {
+        gameOver();
+        return;
     }
 
     snake.unshift(head);
 
-    if(head.x===food.x && head.y===food.y) {
-      if(food.type==='star') { score+=30; playNote(800, 'square'); }
-      else if(food.type==='pill') { 
-          score+=5; playNote(400, 'sine'); 
-          if(snake.length > 4) { snake.pop(); snake.pop(); }
-          else snake.pop();
-      }
-      else { score+=10; playNote(600, 'triangle'); }
-      
-      scoreEl.textContent = score; 
-      spawnFood();
+    // 吃食物
+    if(head.x === food.x && head.y === food.y) {
+        if(food.type==='star') { score+=30; playNote(800, 'square'); }
+        else if(food.type==='pill') { 
+            score+=5; playNote(400, 'sine'); 
+            if(snake.length > 3) { snake.pop(); snake.pop(); } // 縮短
+            else snake.pop();
+        }
+        else { score+=10; playNote(600, 'triangle'); }
+        
+        scoreEl.textContent = score;
+        spawnFood();
     } else {
-      snake.pop();
+        snake.pop();
     }
-
-    draw();
-    
-    const speed = Math.max(50, 90 - Math.sqrt(score) * 3);
-    gameLoopTimeout = setTimeout(update, speed);
   }
 
+  // === 關鍵修正：手動繪製網格 (保證有方格) ===
   function draw() {
-    ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr);
-    
-    if(food && food.x !== undefined) {
-        const fx=food.x*cellSize, fy=food.y*cellSize;
-        const p=cellSize*0.15, s=cellSize-p*2;
-        
-        if(food.type==='star') ctx.fillStyle = '#ffcf33'; 
-        else if(food.type==='pill') ctx.fillStyle = '#4cc9f0'; 
-        else ctx.fillStyle = '#ff3333'; 
-        
-        ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
-        
-        ctx.beginPath(); 
-        if(food.type === 'star') ctx.arc(fx+cellSize/2, fy+cellSize/2, s/2, 0, Math.PI*2);
-        else ctx.roundRect(fx+p, fy+p, s, s, 4); 
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
+    // 清除背景
+    ctx.fillStyle = '#061022';
+    ctx.fillRect(0, 0, cols * cellSize, rows * cellSize);
 
+    // 1. 繪製網格線 (用 JS 畫，不用 CSS)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // 畫直線
+    for(let c=0; c<=cols; c++) {
+        ctx.moveTo(c * cellSize, 0);
+        ctx.lineTo(c * cellSize, rows * cellSize);
+    }
+    // 畫橫線
+    for(let r=0; r<=rows; r++) {
+        ctx.moveTo(0, r * cellSize);
+        ctx.lineTo(cols * cellSize, r * cellSize);
+    }
+    ctx.stroke();
+
+    // 2. 畫邊框 (紅色警戒線，讓你知道邊界在哪)
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, cols * cellSize, rows * cellSize);
+
+    // 3. 畫食物
+    const fx = food.x * cellSize;
+    const fy = food.y * cellSize;
+    const pad = cellSize * 0.15;
+    const size = cellSize - pad * 2;
+    
+    if(food.type === 'star') ctx.fillStyle = '#ffcf33';
+    else if(food.type === 'pill') ctx.fillStyle = '#4cc9f0';
+    else ctx.fillStyle = '#ff3333';
+    
+    // 簡單發光
+    ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+    ctx.beginPath();
+    if(food.type === 'star') ctx.arc(fx + cellSize/2, fy + cellSize/2, size/2, 0, Math.PI*2);
+    else ctx.fillRect(fx + pad, fy + pad, size, size);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 4. 畫蛇
     snake.forEach((p, i) => {
-      ctx.fillStyle = i===0 ? '#fff' : (i%2===0 ? '#7CFF6B' : '#5CE64A');
-      const x=p.x*cellSize, y=p.y*cellSize;
-      const gap = 0.5;
-      
-      ctx.beginPath(); 
-      ctx.roundRect(x+gap, y+gap, cellSize-gap*2, cellSize-gap*2, i===0?4:2); 
-      ctx.fill();
-      
-      if(i===0) { 
-        ctx.fillStyle='#000';
-        const eyeOff = cellSize*0.25;
-        const eyeSize = cellSize*0.12;
-        const cx = x + cellSize/2, cy = y + cellSize/2;
-        ctx.beginPath(); 
-        ctx.arc(cx + dir.y*eyeOff + dir.x*eyeOff, cy + dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2); 
-        ctx.arc(cx - dir.y*eyeOff + dir.x*eyeOff, cy - dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2);
-        ctx.fill();
-      }
+        const sx = p.x * cellSize;
+        const sy = p.y * cellSize;
+        const sGap = 1; // 蛇身縫隙
+        
+        ctx.fillStyle = (i === 0) ? '#ffffff' : ((i%2===0)?'#7CFF6B':'#5CE64A');
+        ctx.fillRect(sx + sGap, sy + sGap, cellSize - sGap*2, cellSize - sGap*2);
+        
+        // 眼睛
+        if(i === 0) {
+            ctx.fillStyle = '#000';
+            const eyeSize = cellSize * 0.15;
+            const center = cellSize / 2;
+            const offset = cellSize * 0.2;
+            // 簡化眼睛畫法
+            ctx.fillRect(sx + center - eyeSize + dir.x*offset, sy + center - eyeSize + dir.y*offset, eyeSize*2, eyeSize*2);
+        }
     });
   }
 
   // === 輸入處理 ===
   const handleInput = (x, y) => { 
     if(!isRunning) return;
-    const lastPendingDir = inputQueue.length > 0 ? inputQueue[inputQueue.length-1] : dir;
-    if(x === -lastPendingDir.x && y === -lastPendingDir.y) return;
-    if(x === lastPendingDir.x && y === lastPendingDir.y) return;
+    const lastDir = inputQueue.length > 0 ? inputQueue[inputQueue.length-1] : dir;
+    if(x === -lastDir.x && y === -lastDir.y) return; // 不能回頭
+    if(x === lastDir.x && y === lastDir.y) return;   // 同方向忽略
     if(inputQueue.length < 2) inputQueue.push({x, y});
   };
 
+  // 搖桿邏輯
   const joyBase = document.getElementById('joyBase');
   const joyKnob = document.getElementById('joyKnob');
   let joyActive = false;
   let joyCenter = {x:0, y:0};
-  const maxRadius = 40; 
   let lastJoyDir = {x:0, y:0};
 
-  const updateJoystick = (clientX, clientY) => {
-      const dx = clientX - joyCenter.x;
-      const dy = clientY - joyCenter.y;
-      const distance = Math.min(Math.sqrt(dx*dx + dy*dy), maxRadius);
+  const updateJoystick = (cx, cy) => {
+      const dx = cx - joyCenter.x;
+      const dy = cy - joyCenter.y;
+      const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40); // 最大半徑
       const angle = Math.atan2(dy, dx);
-      const kx = Math.cos(angle) * distance;
-      const ky = Math.sin(angle) * distance;
+      
+      const kx = Math.cos(angle) * dist;
+      const ky = Math.sin(angle) * dist;
       joyKnob.style.transform = `translate(${kx}px, ${ky}px)`;
 
-      if(distance > 15) {
-          let newX = 0, newY = 0;
-          if (Math.abs(dx) > Math.abs(dy)) newX = dx > 0 ? 1 : -1;
-          else newY = dy > 0 ? 1 : -1;
-
-          if(newX !== lastJoyDir.x || newY !== lastJoyDir.y) {
-              handleInput(newX, newY);
-              lastJoyDir = {x: newX, y: newY};
+      if(dist > 10) { // 死區
+          let nx = 0, ny = 0;
+          if(Math.abs(dx) > Math.abs(dy)) nx = dx>0 ? 1 : -1;
+          else ny = dy>0 ? 1 : -1;
+          
+          if(nx !== lastJoyDir.x || ny !== lastJoyDir.y) {
+              handleInput(nx, ny);
+              lastJoyDir = {x: nx, y: ny};
           }
       }
   };
@@ -430,9 +433,9 @@
   joyBase.addEventListener('touchstart', (e) => {
       e.preventDefault();
       joyActive = true;
-      const rect = joyBase.getBoundingClientRect();
-      joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
-      joyKnob.style.transition = 'none'; 
+      const r = joyBase.getBoundingClientRect();
+      joyCenter = {x: r.left + r.width/2, y: r.top + r.height/2};
+      joyKnob.style.transition = 'none';
       updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
   }, {passive: false});
 
@@ -442,26 +445,29 @@
   }, {passive: false});
 
   window.addEventListener('touchend', (e) => {
-      if(!joyActive) return;
       joyActive = false;
-      joyKnob.style.transition = 'transform 0.1s ease-out';
-      joyKnob.style.transform = `translate(0, 0)`;
+      joyKnob.style.transition = '0.1s';
+      joyKnob.style.transform = 'translate(0,0)';
       lastJoyDir = {x:0, y:0};
   });
 
+  // 鍵盤
   window.addEventListener('keydown', e => {
-      if(['ArrowUp','w','W'].includes(e.key)) handleInput(0,-1);
-      if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
-      if(['ArrowLeft','a','A'].includes(e.key)) handleInput(-1,0);
-      if(['ArrowRight','d','D'].includes(e.key)) handleInput(1,0);
-      if(e.code === 'Space' && !isRunning) startGame();
+      if(['ArrowUp','w'].includes(e.key)) handleInput(0,-1);
+      if(['ArrowDown','s'].includes(e.key)) handleInput(0,1);
+      if(['ArrowLeft','a'].includes(e.key)) handleInput(-1,0);
+      if(['ArrowRight','d'].includes(e.key)) handleInput(1,0);
+      if(e.code === 'Space' && !isRunning) startBtn.click();
+  });
+
+  window.addEventListener('resize', () => {
+      resize();
   });
 
   startBtn.onclick = startGame;
-
-  // 程式入口
-  resize(); 
-  initGame(); 
+  
+  // 啟動
+  resize();
 
 })();
 </script>
