@@ -3,53 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>極限貪食蛇：完美修復版</title>
+  <title>極限貪食蛇：最終完美版</title>
   <style>
     :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.2); }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
       background: radial-gradient(circle at center, #152853 0%, var(--bg) 90%);
       font-family: system-ui, -apple-system, sans-serif; color: #fff; 
-      overflow: hidden; /* 強制禁止捲動 */
-      touch-action: none; /* 禁止預設觸控行為 */
-      user-select: none;
+      overflow: hidden; touch-action: none; user-select: none;
       display: flex; flex-direction: column;
     }
     
-    /* === 頂部資訊列 (確保最頂層) === */
+    /* 頂部資訊列 */
     header {
       padding: 0 20px; 
       display: flex; justify-content: space-between; align-items: center;
       background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
-      flex-shrink: 0; height: 60px; box-sizing: border-box; 
-      
-      /* 關鍵修正：層級設為 999，確保永遠在遮罩之上 */
-      position: relative; 
-      z-index: 999; 
+      flex-shrink: 0; height: 60px; box-sizing: border-box; z-index: 20;
     }
-    
     .header-left { display: flex; align-items: center; gap: 12px; }
-    
-    /* 回大廳按鈕樣式 */
     .home-btn {
         text-decoration: none; font-size: 18px; color: #fff;
         background: rgba(255,255,255,0.1); width: 36px; height: 36px;
         display: flex; align-items: center; justify-content: center;
         border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-        cursor: pointer; /* 確保滑鼠游標 */
-        pointer-events: auto; /* 強制接收點擊 */
     }
-    .home-btn:active { background: var(--accent); color: #000; transform: scale(0.9); }
-
     .score-box { font-size: 20px; font-weight: 800; color: var(--accent); font-family: monospace; }
 
-    /* 遊戲主顯示區 */
+    /* 遊戲區域 */
     .game-wrapper {
         flex: 1; 
         display: flex; align-items: center; justify-content: center;
         position: relative;
         width: 100%; overflow: hidden;
-        z-index: 1; /* 比 header 低 */
     }
 
     .game-container { 
@@ -58,6 +44,7 @@
         box-shadow: 0 0 30px rgba(76, 201, 240, 0.1);
         border: 2px solid rgba(255,255,255,0.1);
         background: #061022;
+        z-index: 1;
     }
     
     canvas {
@@ -66,26 +53,32 @@
       background-size: var(--cell) var(--cell);
     }
 
-    /* 遮罩層：限制在 game-container 內 */
-    #overlay {
+    /* === UI 層 (移除遮罩背景，只保留內容) === */
+    #ui-layer {
       position: absolute; inset: 0; 
-      background: rgba(0, 0, 0, 0.85); 
-      backdrop-filter: blur(5px); 
       display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 100; 
-      pointer-events: auto; 
+      z-index: 100;
+      pointer-events: none; /* 預設讓點擊穿透，這樣不會擋住畫面 */
     }
-    
-    h2 { margin: 0 0 10px 0; font-size: 32px; color: #fff; text-shadow: 0 0 10px var(--accent); }
-    
-    button#startBtn {
-      padding: 15px 50px; font-size: 20px; font-weight: bold;
-      background: var(--accent); border: none; border-radius: 50px;
-      color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
+
+    /* 文字樣式 */
+    h2 { 
+      margin: 0 0 15px 0; font-size: 40px; color: #ff4d6d; 
+      text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+      display: none; /* 預設隱藏 */
       pointer-events: auto;
-      margin-top: 20px;
     }
-    button#startBtn:active { transform: scale(0.95); background: #fff; }
+    
+    /* 按鈕樣式 */
+    button#startBtn {
+      padding: 12px 40px; font-size: 20px; font-weight: bold;
+      background: var(--accent); border: none; border-radius: 50px;
+      color: #000; cursor: pointer; 
+      box-shadow: 0 0 20px var(--accent);
+      pointer-events: auto; /* 按鈕本身可以點 */
+      transition: transform 0.1s;
+    }
+    button#startBtn:active { transform: scale(0.95); }
 
     /* === 搖桿控制區 === */
     .controls-area {
@@ -94,7 +87,7 @@
         background: rgba(0,0,0,0.2);
         flex-shrink: 0;
         position: relative;
-        z-index: 50; /* 比 header 低 */
+        z-index: 50;
     }
 
     .joystick-base {
@@ -131,7 +124,7 @@
   <header>
     <div class="header-left">
         <a href="index.html" class="home-btn">🏠</a>
-        <div style="font-weight:900; letter-spacing:1px; margin-left:10px;">SNAKE <span style="color:var(--accent)">FINAL</span></div>
+        <div style="font-weight:900; letter-spacing:1px; margin-left:10px;">SNAKE</div>
     </div>
     <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
   </header>
@@ -139,9 +132,8 @@
   <div class="game-wrapper">
       <div class="game-container" id="gContainer">
         <canvas id="snakeCanvas"></canvas>
-        <div id="overlay">
-          <h2 id="m-title">READY</h2>
-          <p style="color:#ccc; margin-bottom:10px">滑動搖桿控制</p>
+        <div id="ui-layer">
+          <h2 id="msg-title">GAME OVER</h2>
           <button id="startBtn">START GAME</button>
         </div>
       </div>
@@ -163,8 +155,10 @@
   const ctx = canvas.getContext('2d');
   const container = document.getElementById('gContainer');
   const scoreEl = document.getElementById('scoreVal');
-  const overlay = document.getElementById('overlay');
-  const titleEl = document.getElementById('m-title');
+  
+  // UI 元素
+  const uiLayer = document.getElementById('ui-layer');
+  const msgTitle = document.getElementById('msg-title');
   const startBtn = document.getElementById('startBtn');
   
   // 遊戲參數
@@ -214,30 +208,56 @@
   }
   window.addEventListener('resize', resize);
 
-  // 食物生成
+  // === 絕對保底的食物生成邏輯 ===
   function spawnFood() {
+    // 1. 先嘗試隨機生成
     let valid = false;
-    let safetyCounter = 0;
-    while(!valid && safetyCounter < 500) {
-        food = { 
+    let attempts = 0;
+    let newFood = {};
+
+    while(!valid && attempts < 100) {
+        newFood = { 
             x: Math.floor(Math.random()*cols), 
             y: Math.floor(Math.random()*rows), 
             type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') 
         };
-        valid = !snake.some(p => p.x === food.x && p.y === food.y);
-        safetyCounter++;
+        // 檢查是否跟蛇身重疊
+        valid = !snake.some(p => p.x === newFood.x && p.y === newFood.y);
+        attempts++;
+    }
+
+    // 2. 如果隨機 100 次都失敗（幾乎不可能，除非滿屏），進行「地毯式搜索」
+    if (!valid) {
+        // 遍歷所有格子找空位
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                if (!snake.some(p => p.x === c && p.y === r)) {
+                    newFood = { x: c, y: r, type: 'normal' };
+                    valid = true;
+                    break;
+                }
+            }
+            if(valid) break;
+        }
+    }
+
+    // 3. 賦值 (如果連地毯式搜索都沒位置，那就是贏了或滿了，這裡假設一定有位置)
+    if (valid) {
+        food = newFood;
     }
   }
 
-  // 核心重置邏輯
+  // 初始化遊戲
   function initGame() {
     score = 0; scoreEl.textContent = score;
     const mid = Math.floor(cols/2);
     snake = [];
+    // 初始 5 格
     for(let i=0; i<5; i++) snake.push({x:mid, y:mid+i});
     dir = {x:0, y:-1}; 
     inputQueue = [];
     
+    // 關鍵：先生成食物，再繪圖
     spawnFood(); 
     
     if(gameLoopTimeout) clearTimeout(gameLoopTimeout);
@@ -246,16 +266,29 @@
     draw(); 
   }
 
-  // 遊戲結束
+  function startGame() {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+
+    // 隱藏按鈕和標題
+    startBtn.style.display = 'none';
+    msgTitle.style.display = 'none';
+    
+    initGame();
+    isRunning = true;
+    update();
+  }
+
   function gameOver() {
     playNote(100, 'sawtooth', 0.5); 
     isRunning = false;
-    titleEl.innerText = "GAME OVER";
+    
+    // 顯示失敗訊息和按鈕
+    msgTitle.style.display = 'block';
     startBtn.innerText = "TRY AGAIN";
-    overlay.style.display = 'flex';
+    startBtn.style.display = 'block';
   }
 
-  // 遊戲迴圈
   function update() {
     if(!isRunning) return;
 
@@ -266,6 +299,7 @@
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
+    // 碰撞檢查
     if(head.x<0 || head.x>=cols || head.y<0 || head.y>=rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
       gameOver();
       return;
@@ -273,6 +307,7 @@
 
     snake.unshift(head);
 
+    // 吃到食物
     if(head.x===food.x && head.y===food.y) {
       if(food.type==='star') { score+=30; playNote(800, 'square'); }
       else if(food.type==='pill') { 
@@ -297,7 +332,8 @@
   function draw() {
     ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr);
     
-    if(food.x !== undefined) {
+    // 畫食物 (如果 food 有值才畫)
+    if(food && food.x !== undefined) {
         const fx=food.x*cell, fy=food.y*cell;
         const p=cell*0.15, s=cell-p*2;
         
@@ -314,6 +350,7 @@
         ctx.shadowBlur = 0;
     }
 
+    // 畫蛇
     snake.forEach((p, i) => {
       ctx.fillStyle = i===0 ? '#fff' : (i%2===0 ? '#7CFF6B' : '#5CE64A');
       const x=p.x*cell, y=p.y*cell;
@@ -401,21 +438,15 @@
       if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
       if(['ArrowLeft','a','A'].includes(e.key)) handleInput(-1,0);
       if(['ArrowRight','d','D'].includes(e.key)) handleInput(1,0);
+      if(e.code === 'Space' && !isRunning) startGame();
   });
 
-  // === 啟動按鈕 ===
-  startBtn.onclick = () => {
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if(audioCtx.state === 'suspended') audioCtx.resume();
-    initGame();
-    overlay.style.display = 'none';
-    isRunning = true;
-    update();
-  };
+  // 綁定開始按鈕
+  startBtn.onclick = startGame;
 
   // 程式入口
   resize(); 
-  initGame(); // 確保紅點一開始就存在
+  initGame(); // 確保初始畫面有紅點
 
 })();
 </script>
