@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極限爆破：5層開局版</title>
+    <title>極限爆破：無限分裂版</title>
     <style>
         :root { --accent: #00d2ff; --bg: #050510; }
         body { background: var(--bg); color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; user-select: none; }
@@ -49,7 +49,7 @@
         <header>
             <div class="header-left">
                 <a href="index.html" class="home-btn">🏠</a>
-                <div class="game-title">BREAKOUT <span style="color:#ff0055; font-size:0.8em">V5</span></div>
+                <div class="game-title">BREAKOUT <span style="color:#00ffff; font-size:0.8em">MULTI</span></div>
             </div>
             <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
         </header>
@@ -57,10 +57,10 @@
     </div>
 
     <div id="overlay">
-        <h1 id="m-title">極限爆破 V5</h1>
-        <p id="m-desc" style="color:#ccc; margin-top:10px;">初始 5 層挑戰 + 烈焰特效</p>
+        <h1 id="m-title">極限爆破 MULTI</h1>
+        <p id="m-desc" style="color:#ccc; margin-top:10px;">無限分裂 + 永久極速 + 烈焰特效</p>
         <button id="startBtn">開始遊戲</button>
-        <div style="color:#888; font-size:12px; margin-top:15px;">每消除 8 個磚塊追加 2 層</div>
+        <div style="color:#888; font-size:12px; margin-top:15px;">青色磚塊可分裂球 | 只要有一顆球在場即繼續</div>
     </div>
 
 <script>
@@ -79,7 +79,13 @@
     const FIRE_DURATION = 6000; 
     
     let paddle = { x: 0, w: 100, h: 15, targetW: 100 };
-    let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
+    
+    let powerups = { 
+        long: 0,       
+        fireball: 0,   
+        shield: 0,     
+        fast: false    
+    };
     let audioCtx;
 
     // 音效
@@ -141,28 +147,25 @@
         });
     }
 
-    // 修改：spawnWave 現在接受一個參數 `lines`，決定生成幾行
     function spawnWave(lines = 2) {
         shake = 10;
         playSfx(100, 'sawtooth', 0.5);
         const cols = 6;
         const bw = (canvasW - 20) / cols;
         
-        // 迴圈次數由參數決定
         for (let i = 0; i < lines; i++) {
             setTimeout(() => {
                 if(!isPlaying) return;
-                // 將現有磚塊往下推
                 bricks.forEach(b => { b.row++; b.targetY = b.row * 30 + 80; });
                 
-                // 生成新的一行在最上面
                 for (let c = 0; c < cols; c++) {
                     const r = Math.random();
                     let type = 'NORMAL', color = `hsl(${Math.random()*360}, 70%, 55%)`, hits = 1;
+                    
                     if (r < 0.1) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
-                    else if (r < 0.15) { type = 'BOMB'; color = '#ff0055'; }
+                    else if (r < 0.15) { type = 'SPLIT'; color = '#00ffff'; } // 新增：分裂球磚塊 (青色)
                     else if (r < 0.2) { type = 'LONG'; color = '#00ff00'; }
-                    else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; }
+                    else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; } 
                     else if (r < 0.3) { type = 'SHIELD'; color = '#00d2ff'; }
                     else if (r < 0.35) { type = 'SPEED'; color = '#cc00ff'; }
 
@@ -172,7 +175,7 @@
                         row: 0, col: c, status: 1, type, color, hits
                     });
                 }
-            }, i * 120); // 稍微增加間隔，讓大量生成時更有層次感
+            }, i * 120);
         }
     }
 
@@ -181,39 +184,40 @@
         const now = Date.now();
         const paddleY = canvasH - 60;
         
-        // 粒子邏輯更新
+        // 粒子邏輯
         for(let i=particles.length-1; i>=0; i--) {
             let p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= p.decay;
-            p.size *= 0.95; 
+            p.x += p.vx; p.y += p.vy;
+            p.life -= p.decay; p.size *= 0.95; 
             if(p.life <= 0) particles.splice(i, 1);
         }
 
-        // 擋板
+        // 擋板寬度
         let targetW = (now < powerups.long) ? canvasW * 0.4 : Math.min(150, canvasW * 0.25);
         paddle.w += (targetW - paddle.w) * 0.15;
 
-        // 磚塊
+        // 磚塊移動
         bricks = bricks.filter(b => b.status === 1);
         bricks.forEach(b => {
             b.y += (b.targetY - b.y) * 0.15;
             if (b.y + b.h > paddleY) endGame("DEFEATED", "防線失守");
         });
 
-        // 球
-        balls.forEach(ball => {
-            if (!ball.active) return;
+        // 球物理 (使用 for loop 以便在迴圈中新增球)
+        for (let i = balls.length - 1; i >= 0; i--) {
+            let ball = balls[i];
+            if (!ball.active) continue;
+
             const isFire = now < powerups.fireball;
 
             if(isFire) spawnTrail(ball.x, ball.y);
 
+            // 速度計算
             let currentSpeed = BASE_SPEED;
-            if (now < powerups.fast) currentSpeed *= 1.5;
+            if (powerups.fast) currentSpeed *= 1.5;
             
             const velocity = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
-            if (velocity < currentSpeed) {
+            if (Math.abs(velocity - currentSpeed) > 0.1) {
                 const scale = currentSpeed / velocity;
                 ball.dx *= scale; ball.dy *= scale;
             }
@@ -221,10 +225,12 @@
             ball.x += ball.dx;
             ball.y += ball.dy;
 
+            // 牆壁碰撞
             if (ball.x < 5) { ball.x = 5; ball.dx = Math.abs(ball.dx); playSfx(300); } 
             else if (ball.x > canvasW - 5) { ball.x = canvasW - 5; ball.dx = -Math.abs(ball.dx); playSfx(300); }
             if (ball.y < 5) { ball.y = 5; ball.dy = Math.abs(ball.dy); playSfx(300); }
 
+            // 擋板碰撞
             if (ball.dy > 0 && ball.y + 8 >= paddleY && ball.y - 8 <= paddleY + paddle.h) {
                 if (ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
                     ball.y = paddleY - 8;
@@ -233,10 +239,11 @@
                     ball.dx = hitPoint * 8;
                     if (Math.abs(ball.dx) < 1) ball.dx = (ball.dx < 0 ? -1.5 : 1.5);
                     playSfx(500);
-                    spawnExplosion(ball.x, paddleY, isFire?'#ff5500':'#00d2ff');
+                    spawnExplosion(ball.x, paddleY, isFire?'#ff5500':(powerups.fast?'#cc00ff':'#00d2ff'));
                 }
             }
 
+            // 護盾
             if (now < powerups.shield && ball.y > canvasH - 15) {
                 ball.y = canvasH - 15;
                 ball.dy = -Math.abs(ball.dy); 
@@ -245,8 +252,9 @@
             }
             if (ball.y > canvasH + 20) ball.active = false;
 
-            for (let i = 0; i < bricks.length; i++) {
-                let b = bricks[i];
+            // 磚塊碰撞
+            for (let j = 0; j < bricks.length; j++) {
+                let b = bricks[j];
                 if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
                     if (isFire) {
                         spawnExplosion(ball.x, ball.y, '#ffaa00');
@@ -264,24 +272,50 @@
                         score += (b.type === 'BOSS' ? 50 : 10);
                         playSfx(b.type==='BOSS'?150:600, 'square');
                         
-                        if (['LONG','FIREBALL','SHIELD','SPEED'].includes(b.type)) {
-                            let duration = (b.type === 'FIREBALL') ? FIRE_DURATION : 8000;
-                            powerups[b.type.toLowerCase()] = now + duration;
-                            statusEl.innerText = b.type + " !!"; 
+                        // 道具邏輯
+                        if (['LONG','FIREBALL','SHIELD','SPEED','SPLIT'].includes(b.type)) {
+                            let msg = b.type;
+                            if (b.type === 'SPEED') {
+                                powerups.fast = true;
+                                msg = "SPEED UP (PERMANENT)!";
+                            } 
+                            else if (b.type === 'SPLIT') {
+                                // === 分裂邏輯 ===
+                                msg = "MULTIBALL !!";
+                                // 生成兩顆新球，給予些微隨機速度變化
+                                balls.push({
+                                    x: ball.x, y: ball.y,
+                                    dx: -ball.dx + (Math.random()-0.5)*2, 
+                                    dy: ball.dy + (Math.random()-0.5)*2,
+                                    active: true
+                                });
+                                balls.push({
+                                    x: ball.x, y: ball.y,
+                                    dx: ball.dx * 0.5, 
+                                    dy: -ball.dy, // 反彈一顆
+                                    active: true
+                                });
+                            }
+                            else {
+                                let duration = (b.type === 'FIREBALL') ? FIRE_DURATION : 8000;
+                                powerups[b.type.toLowerCase()] = now + duration;
+                            }
+
+                            statusEl.innerText = msg; 
                             statusEl.style.opacity = 1;
                             if(statusEl.timer) clearTimeout(statusEl.timer);
                             statusEl.timer = setTimeout(()=>statusEl.style.opacity=0, 2000);
                         }
                         
                         hitCount++;
-                        // 修改：達到計數時，只增加 2 層
                         if (hitCount % 8 === 0) spawnWave(2);
                     }
                     break;
                 }
             }
-        });
+        }
 
+        // Game Over 判定：所有球都不活躍才算輸
         if (balls.filter(b => b.active).length === 0) endGame("GAME OVER", "球已耗盡");
     }
 
@@ -292,6 +326,7 @@
         ctx.save();
         if (shake > 0.5) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
 
+        // 繪製粒子
         ctx.globalCompositeOperation = 'lighter';
         particles.forEach(p => {
             ctx.fillStyle = p.color;
@@ -315,6 +350,7 @@
         ctx.beginPath(); ctx.roundRect(paddle.x, paddleY, paddle.w, paddle.h, 8); ctx.fill();
         ctx.shadowBlur = 0;
 
+        // 火焰球倒數條
         if (now < powerups.fireball) {
             const timeLeft = powerups.fireball - now;
             const pct = Math.max(0, timeLeft / FIRE_DURATION);
@@ -338,14 +374,23 @@
         balls.forEach(b => {
             if(!b.active) return;
             const isFire = now < powerups.fireball;
+            const isFast = powerups.fast;
+            
+            ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, Math.PI*2); 
+            
             if(isFire) {
-                ctx.shadowBlur = 20; ctx.shadowColor = '#ff5500';
                 ctx.fillStyle = '#fff'; 
+                ctx.shadowBlur = 20; ctx.shadowColor = '#ff5500';
+            } else if (isFast) {
+                ctx.fillStyle = '#e0aaff'; 
+                ctx.shadowBlur = 15; ctx.shadowColor = '#cc00ff';
             } else {
                 ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 0;
             }
-            ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fill();
             ctx.shadowBlur = 0;
+            
             if(isFire) {
                 ctx.fillStyle = '#ffaa00';
                 ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, Math.PI*2); ctx.fill();
@@ -380,12 +425,11 @@
         
         const startDx = (Math.random() > 0.5 ? 1 : -1) * 4;
         balls = [{ x: canvasW/2, y: canvasH - 80, dx: startDx, dy: -BASE_SPEED, active: true }];
-        powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
+        
+        powerups = { long: 0, fireball: 0, shield: 0, fast: false };
         
         isPlaying = true;
-        
-        // 修改：開始時呼叫 spawnWave(5)，生成 5 層
-        spawnWave(5);
+        spawnWave(5); 
         
         if(animationId) cancelAnimationFrame(animationId);
         gameLoop();
