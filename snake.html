@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>極限貪食蛇：最終完美版</title>
+  <title>極限貪食蛇：全螢幕適配版</title>
   <style>
     :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.2); }
     html, body {
@@ -14,84 +14,83 @@
       display: flex; flex-direction: column;
     }
     
-    /* 頂部資訊列 */
+    /* 1. 頂部區塊 (固定高度) */
     header {
-      padding: 0 20px; 
+      padding: 0 15px; 
       display: flex; justify-content: space-between; align-items: center;
       background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
-      flex-shrink: 0; height: 60px; box-sizing: border-box; z-index: 20;
+      flex-shrink: 0; height: 50px; box-sizing: border-box; z-index: 20;
     }
-    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
     .home-btn {
         text-decoration: none; font-size: 18px; color: #fff;
-        background: rgba(255,255,255,0.1); width: 36px; height: 36px;
+        background: rgba(255,255,255,0.1); width: 32px; height: 32px;
         display: flex; align-items: center; justify-content: center;
         border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
     }
-    .score-box { font-size: 20px; font-weight: 800; color: var(--accent); font-family: monospace; }
+    .score-box { font-size: 18px; font-weight: 800; color: var(--accent); font-family: monospace; }
 
-    /* 遊戲區域 */
+    /* 2. 遊戲主區域 (彈性伸縮，佔滿剩餘空間) */
     .game-wrapper {
-        flex: 1; 
+        flex: 1; /* 吃掉剩下的所有高度 */
+        width: 100%;
         display: flex; align-items: center; justify-content: center;
         position: relative;
-        width: 100%; overflow: hidden;
+        overflow: hidden;
+        padding: 10px; /* 留一點邊距 */
+        box-sizing: border-box;
     }
 
+    /* 畫布容器：不設固定寬高，由 JS 動態決定 */
     .game-container { 
         position: relative; 
-        border-radius: 12px; overflow: hidden; 
-        box-shadow: 0 0 30px rgba(76, 201, 240, 0.1);
-        border: 2px solid rgba(255,255,255,0.1);
+        border-radius: 4px; overflow: hidden; 
+        box-shadow: 0 0 20px rgba(76, 201, 240, 0.15);
+        border: 2px solid rgba(255,255,255,0.15);
         background: #061022;
         z-index: 1;
     }
     
     canvas {
       display: block;
+      /* 網格線 */
       background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-      background-size: var(--cell) var(--cell);
+      /* background-size 由 JS 動態設定 */
     }
 
-    /* === UI 層 (移除遮罩背景，只保留內容) === */
+    /* UI 層 */
     #ui-layer {
       position: absolute; inset: 0; 
       display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 100;
-      pointer-events: none; /* 預設讓點擊穿透，這樣不會擋住畫面 */
+      z-index: 100; pointer-events: none;
     }
 
-    /* 文字樣式 */
     h2 { 
-      margin: 0 0 15px 0; font-size: 40px; color: #ff4d6d; 
+      margin: 0 0 15px 0; font-size: 36px; color: #ff4d6d; 
       text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
-      display: none; /* 預設隱藏 */
-      pointer-events: auto;
+      display: none; pointer-events: auto;
     }
     
-    /* 按鈕樣式 */
     button#startBtn {
-      padding: 12px 40px; font-size: 20px; font-weight: bold;
+      padding: 12px 40px; font-size: 18px; font-weight: bold;
       background: var(--accent); border: none; border-radius: 50px;
-      color: #000; cursor: pointer; 
-      box-shadow: 0 0 20px var(--accent);
-      pointer-events: auto; /* 按鈕本身可以點 */
-      transition: transform 0.1s;
+      color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
+      pointer-events: auto; transition: transform 0.1s;
     }
     button#startBtn:active { transform: scale(0.95); }
 
-    /* === 搖桿控制區 === */
+    /* 3. 底部搖桿區 (固定高度) */
     .controls-area {
-        height: 200px; width: 100%;
+        height: 180px; width: 100%;
         display: flex; justify-content: center; align-items: center;
-        background: rgba(0,0,0,0.2);
-        flex-shrink: 0;
+        background: rgba(0,0,0,0.15);
+        flex-shrink: 0; /* 禁止被壓縮 */
         position: relative;
         z-index: 50;
     }
 
     .joystick-base {
-        width: 130px; height: 130px;
+        width: 120px; height: 120px;
         background: rgba(255, 255, 255, 0.05);
         border: 2px solid rgba(255, 255, 255, 0.1);
         border-radius: 50%;
@@ -111,10 +110,10 @@
 
     .joy-arrow { 
         position: absolute; color: rgba(255,255,255,0.2); 
-        font-size: 16px; font-weight: bold; pointer-events: none;
+        font-size: 14px; font-weight: bold; pointer-events: none;
     }
-    .ja-up { top: 10px; } .ja-down { bottom: 10px; } 
-    .ja-left { left: 10px; } .ja-right { right: 10px; }
+    .ja-up { top: 8px; } .ja-down { bottom: 8px; } 
+    .ja-left { left: 8px; } .ja-right { right: 8px; }
 
     @media (min-width: 800px) { .controls-area { display: none; } }
   </style>
@@ -155,15 +154,14 @@
   const ctx = canvas.getContext('2d');
   const container = document.getElementById('gContainer');
   const scoreEl = document.getElementById('scoreVal');
-  
-  // UI 元素
-  const uiLayer = document.getElementById('ui-layer');
   const msgTitle = document.getElementById('msg-title');
   const startBtn = document.getElementById('startBtn');
   
-  // 遊戲參數
-  const GRID_SIZE = 40; 
-  let cols = GRID_SIZE, rows = GRID_SIZE, cell, dpr;
+  // 遊戲核心變數
+  let cols, rows;   // 現在這是動態計算的，不是固定的
+  let cellSize = 18; // 每個格子的大小 (px)，會根據解析度微調
+  let dpr;
+  
   let snake = [], food = {};
   let dir = {x:0, y:-1}; 
   let inputQueue = [];
@@ -185,32 +183,52 @@
     } catch(e){}
   }
 
-  // 尺寸計算
+  // === 關鍵修正：動態網格計算 ===
   function resize() {
     dpr = window.devicePixelRatio || 1;
-    const wrapper = document.querySelector('.game-wrapper');
-    const maxWidth = wrapper.clientWidth * 0.95;
-    const maxHeight = wrapper.clientHeight * 0.95;
-    const size = Math.min(maxWidth, maxHeight);
-    const finalSize = Math.floor(size / 2) * 2; 
-
-    container.style.width = finalSize + "px";
-    container.style.height = finalSize + "px";
     
-    cell = finalSize / cols;
-    canvas.width = finalSize * dpr;
-    canvas.height = finalSize * dpr;
+    // 1. 取得 wrapper 目前可用的寬高 (這是最準確的剩餘空間)
+    const wrapper = document.querySelector('.game-wrapper');
+    const availW = wrapper.clientWidth - 20; // 扣掉 padding
+    const availH = wrapper.clientHeight - 20;
+    
+    // 2. 設定目標格子大小 (例如約 20px 一格)
+    const targetCellSize = 20; 
+    
+    // 3. 算出橫向和直向最多能放幾格
+    cols = Math.floor(availW / targetCellSize);
+    rows = Math.floor(availH / targetCellSize);
+    
+    // 4. 反推準確的畫布大小 (必須是格子的整數倍，才不會有半格)
+    const finalW = cols * targetCellSize;
+    const finalH = rows * targetCellSize;
+    
+    // 5. 設定 CSS 尺寸
+    container.style.width = finalW + "px";
+    container.style.height = finalH + "px";
+    
+    // 6. 設定 Canvas 解析度
+    canvas.width = finalW * dpr;
+    canvas.height = finalH * dpr;
     ctx.scale(dpr, dpr);
     
-    document.documentElement.style.setProperty('--cell', cell + 'px');
+    // 7. 更新實際使用的格子大小 (給繪圖用)
+    cellSize = targetCellSize;
+    document.documentElement.style.setProperty('--cell', cellSize + 'px');
     
-    if(!isRunning) draw(); 
+    // 8. 如果在暫停狀態，重畫畫面以免黑屏
+    if(!isRunning && snake.length > 0) draw();
   }
-  window.addEventListener('resize', resize);
+  
+  // 監聽螢幕旋轉或調整大小
+  window.addEventListener('resize', () => {
+    resize();
+    // 如果重設大小時正在玩，可能需要暫停或重置，這裡選擇重畫
+    if(!isRunning) draw(); 
+  });
 
-  // === 絕對保底的食物生成邏輯 ===
+  // 保證食物生成
   function spawnFood() {
-    // 1. 先嘗試隨機生成
     let valid = false;
     let attempts = 0;
     let newFood = {};
@@ -221,14 +239,11 @@
             y: Math.floor(Math.random()*rows), 
             type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') 
         };
-        // 檢查是否跟蛇身重疊
         valid = !snake.some(p => p.x === newFood.x && p.y === newFood.y);
         attempts++;
     }
 
-    // 2. 如果隨機 100 次都失敗（幾乎不可能，除非滿屏），進行「地毯式搜索」
     if (!valid) {
-        // 遍歷所有格子找空位
         for(let r=0; r<rows; r++) {
             for(let c=0; c<cols; c++) {
                 if (!snake.some(p => p.x === c && p.y === r)) {
@@ -241,23 +256,29 @@
         }
     }
 
-    // 3. 賦值 (如果連地毯式搜索都沒位置，那就是贏了或滿了，這裡假設一定有位置)
-    if (valid) {
-        food = newFood;
-    }
+    if (valid) food = newFood;
   }
 
-  // 初始化遊戲
   function initGame() {
+    resize(); // 確保開始前尺寸是對的
     score = 0; scoreEl.textContent = score;
-    const mid = Math.floor(cols/2);
+    
+    // 蛇出生在中間
+    const midX = Math.floor(cols/2);
+    const midY = Math.floor(rows/2);
+    
     snake = [];
     // 初始 5 格
-    for(let i=0; i<5; i++) snake.push({x:mid, y:mid+i});
+    for(let i=0; i<5; i++) {
+        // 確保初始蛇身不會超出下方邊界 (雖然機率很低)
+        if (midY + i < rows) {
+            snake.push({x: midX, y: midY + i});
+        }
+    }
+    
     dir = {x:0, y:-1}; 
     inputQueue = [];
     
-    // 關鍵：先生成食物，再繪圖
     spawnFood(); 
     
     if(gameLoopTimeout) clearTimeout(gameLoopTimeout);
@@ -270,7 +291,6 @@
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(audioCtx.state === 'suspended') audioCtx.resume();
 
-    // 隱藏按鈕和標題
     startBtn.style.display = 'none';
     msgTitle.style.display = 'none';
     
@@ -283,7 +303,6 @@
     playNote(100, 'sawtooth', 0.5); 
     isRunning = false;
     
-    // 顯示失敗訊息和按鈕
     msgTitle.style.display = 'block';
     startBtn.innerText = "TRY AGAIN";
     startBtn.style.display = 'block';
@@ -299,15 +318,15 @@
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-    // 碰撞檢查
-    if(head.x<0 || head.x>=cols || head.y<0 || head.y>=rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
+    // === 邊界檢查 (使用動態計算的 cols 和 rows) ===
+    // 這裡保證了蛇絕對不會跑出畫面
+    if(head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
       gameOver();
       return;
     }
 
     snake.unshift(head);
 
-    // 吃到食物
     if(head.x===food.x && head.y===food.y) {
       if(food.type==='star') { score+=30; playNote(800, 'square'); }
       else if(food.type==='pill') { 
@@ -332,10 +351,9 @@
   function draw() {
     ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr);
     
-    // 畫食物 (如果 food 有值才畫)
     if(food && food.x !== undefined) {
-        const fx=food.x*cell, fy=food.y*cell;
-        const p=cell*0.15, s=cell-p*2;
+        const fx=food.x*cellSize, fy=food.y*cellSize;
+        const p=cellSize*0.15, s=cellSize-p*2;
         
         if(food.type==='star') ctx.fillStyle = '#ffcf33'; 
         else if(food.type==='pill') ctx.fillStyle = '#4cc9f0'; 
@@ -344,27 +362,26 @@
         ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
         
         ctx.beginPath(); 
-        if(food.type === 'star') ctx.arc(fx+cell/2, fy+cell/2, s/2, 0, Math.PI*2);
+        if(food.type === 'star') ctx.arc(fx+cellSize/2, fy+cellSize/2, s/2, 0, Math.PI*2);
         else ctx.roundRect(fx+p, fy+p, s, s, 4); 
         ctx.fill();
         ctx.shadowBlur = 0;
     }
 
-    // 畫蛇
     snake.forEach((p, i) => {
       ctx.fillStyle = i===0 ? '#fff' : (i%2===0 ? '#7CFF6B' : '#5CE64A');
-      const x=p.x*cell, y=p.y*cell;
+      const x=p.x*cellSize, y=p.y*cellSize;
       const gap = 0.5;
       
       ctx.beginPath(); 
-      ctx.roundRect(x+gap, y+gap, cell-gap*2, cell-gap*2, i===0?4:2); 
+      ctx.roundRect(x+gap, y+gap, cellSize-gap*2, cellSize-gap*2, i===0?4:2); 
       ctx.fill();
       
       if(i===0) { 
         ctx.fillStyle='#000';
-        const eyeOff = cell*0.25;
-        const eyeSize = cell*0.12;
-        const cx = x + cell/2, cy = y + cell/2;
+        const eyeOff = cellSize*0.25;
+        const eyeSize = cellSize*0.12;
+        const cx = x + cellSize/2, cy = y + cellSize/2;
         ctx.beginPath(); 
         ctx.arc(cx + dir.y*eyeOff + dir.x*eyeOff, cy + dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2); 
         ctx.arc(cx - dir.y*eyeOff + dir.x*eyeOff, cy - dir.x*eyeOff + dir.y*eyeOff, eyeSize, 0, Math.PI*2);
@@ -373,7 +390,7 @@
     });
   }
 
-  // === 輸入與搖桿 ===
+  // === 輸入處理 ===
   const handleInput = (x, y) => { 
     if(!isRunning) return;
     const lastPendingDir = inputQueue.length > 0 ? inputQueue[inputQueue.length-1] : dir;
@@ -432,7 +449,6 @@
       lastJoyDir = {x:0, y:0};
   });
 
-  // 鍵盤
   window.addEventListener('keydown', e => {
       if(['ArrowUp','w','W'].includes(e.key)) handleInput(0,-1);
       if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
@@ -441,12 +457,11 @@
       if(e.code === 'Space' && !isRunning) startGame();
   });
 
-  // 綁定開始按鈕
   startBtn.onclick = startGame;
 
   // 程式入口
   resize(); 
-  initGame(); // 確保初始畫面有紅點
+  initGame(); 
 
 })();
 </script>
