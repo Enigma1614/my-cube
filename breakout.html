@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極限爆破：烈焰特效版</title>
+    <title>極限爆破：5層開局版</title>
     <style>
         :root { --accent: #00d2ff; --bg: #050510; }
         body { background: var(--bg); color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; user-select: none; }
@@ -49,7 +49,7 @@
         <header>
             <div class="header-left">
                 <a href="index.html" class="home-btn">🏠</a>
-                <div class="game-title">BREAKOUT <span style="color:#ff0055; font-size:0.8em">FX</span></div>
+                <div class="game-title">BREAKOUT <span style="color:#ff0055; font-size:0.8em">V5</span></div>
             </div>
             <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
         </header>
@@ -57,10 +57,10 @@
     </div>
 
     <div id="overlay">
-        <h1 id="m-title">極限爆破 FX</h1>
-        <p id="m-desc" style="color:#ccc; margin-top:10px;">烈焰特效 + 物理強化</p>
+        <h1 id="m-title">極限爆破 V5</h1>
+        <p id="m-desc" style="color:#ccc; margin-top:10px;">初始 5 層挑戰 + 烈焰特效</p>
         <button id="startBtn">開始遊戲</button>
-        <div style="color:#888; font-size:12px; margin-top:15px;">滑鼠/觸控拖曳控制</div>
+        <div style="color:#888; font-size:12px; margin-top:15px;">每消除 8 個磚塊追加 2 層</div>
     </div>
 
 <script>
@@ -73,13 +73,12 @@
     let canvasW, canvasH, dpr;
     let animationId;
     let isPlaying = false, score = 0, hitCount = 0, shake = 0;
-    let bricks = [], balls = [], particles = []; // 新增粒子陣列
+    let bricks = [], balls = [], particles = [];
     
     const BASE_SPEED = 7.5; 
-    const FIRE_DURATION = 6000; // 火球持續時間改為 6 秒 (毫秒)
+    const FIRE_DURATION = 6000; 
     
     let paddle = { x: 0, w: 100, h: 15, targetW: 100 };
-    // 記錄道具的結束時間戳記
     let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
     let audioCtx;
 
@@ -111,9 +110,8 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // 粒子系統：產生爆炸
+    // 粒子系統
     function spawnExplosion(x, y, color) {
-        // 根據不同裝置效能決定粒子數量
         const count = 15;
         for(let i=0; i<count; i++) {
             const angle = Math.random() * Math.PI * 2;
@@ -130,30 +128,34 @@
         }
     }
 
-    // 粒子系統：火球拖尾
     function spawnTrail(x, y) {
         particles.push({
-            x: x + (Math.random()-0.5)*10, // 稍微隨機位置
+            x: x + (Math.random()-0.5)*10, 
             y: y + (Math.random()-0.5)*10,
-            vx: (Math.random()-0.5) * 1, // 緩慢飄動
+            vx: (Math.random()-0.5) * 1, 
             vy: (Math.random()-0.5) * 1,
             life: 0.8,
-            color: '#ffaa00', // 火焰色
+            color: '#ffaa00', 
             size: Math.random() * 6 + 2,
             decay: 0.08
         });
     }
 
-    function spawnWave() {
+    // 修改：spawnWave 現在接受一個參數 `lines`，決定生成幾行
+    function spawnWave(lines = 2) {
         shake = 10;
         playSfx(100, 'sawtooth', 0.5);
         const cols = 6;
         const bw = (canvasW - 20) / cols;
         
-        for (let i = 0; i < 2; i++) {
+        // 迴圈次數由參數決定
+        for (let i = 0; i < lines; i++) {
             setTimeout(() => {
                 if(!isPlaying) return;
+                // 將現有磚塊往下推
                 bricks.forEach(b => { b.row++; b.targetY = b.row * 30 + 80; });
+                
+                // 生成新的一行在最上面
                 for (let c = 0; c < cols; c++) {
                     const r = Math.random();
                     let type = 'NORMAL', color = `hsl(${Math.random()*360}, 70%, 55%)`, hits = 1;
@@ -170,7 +172,7 @@
                         row: 0, col: c, status: 1, type, color, hits
                     });
                 }
-            }, i * 100);
+            }, i * 120); // 稍微增加間隔，讓大量生成時更有層次感
         }
     }
 
@@ -185,7 +187,7 @@
             p.x += p.vx;
             p.y += p.vy;
             p.life -= p.decay;
-            p.size *= 0.95; // 變小
+            p.size *= 0.95; 
             if(p.life <= 0) particles.splice(i, 1);
         }
 
@@ -205,7 +207,6 @@
             if (!ball.active) return;
             const isFire = now < powerups.fireball;
 
-            // 火球拖尾特效
             if(isFire) spawnTrail(ball.x, ball.y);
 
             let currentSpeed = BASE_SPEED;
@@ -220,12 +221,10 @@
             ball.x += ball.dx;
             ball.y += ball.dy;
 
-            // 邊界
             if (ball.x < 5) { ball.x = 5; ball.dx = Math.abs(ball.dx); playSfx(300); } 
             else if (ball.x > canvasW - 5) { ball.x = canvasW - 5; ball.dx = -Math.abs(ball.dx); playSfx(300); }
             if (ball.y < 5) { ball.y = 5; ball.dy = Math.abs(ball.dy); playSfx(300); }
 
-            // 擋板碰撞
             if (ball.dy > 0 && ball.y + 8 >= paddleY && ball.y - 8 <= paddleY + paddle.h) {
                 if (ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
                     ball.y = paddleY - 8;
@@ -234,12 +233,10 @@
                     ball.dx = hitPoint * 8;
                     if (Math.abs(ball.dx) < 1) ball.dx = (ball.dx < 0 ? -1.5 : 1.5);
                     playSfx(500);
-                    // 擋板擊球特效
                     spawnExplosion(ball.x, paddleY, isFire?'#ff5500':'#00d2ff');
                 }
             }
 
-            // 護盾
             if (now < powerups.shield && ball.y > canvasH - 15) {
                 ball.y = canvasH - 15;
                 ball.dy = -Math.abs(ball.dy); 
@@ -248,19 +245,17 @@
             }
             if (ball.y > canvasH + 20) ball.active = false;
 
-            // 磚塊碰撞
             for (let i = 0; i < bricks.length; i++) {
                 let b = bricks[i];
                 if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
                     if (isFire) {
-                        // 火球穿透特效：在穿過的地方炸開
                         spawnExplosion(ball.x, ball.y, '#ffaa00');
-                        shake = 5; // 火球撞擊震動
+                        shake = 5; 
                     } else {
                         ball.dy *= -1;
                         if(ball.dy > 0) ball.y = b.y + b.h + 2;
                         else ball.y = b.y - 2;
-                        spawnExplosion(ball.x, ball.y, b.color); // 普通撞擊特效
+                        spawnExplosion(ball.x, ball.y, b.color);
                     }
                     
                     b.hits--;
@@ -270,10 +265,8 @@
                         playSfx(b.type==='BOSS'?150:600, 'square');
                         
                         if (['LONG','FIREBALL','SHIELD','SPEED'].includes(b.type)) {
-                            // 設定結束時間
                             let duration = (b.type === 'FIREBALL') ? FIRE_DURATION : 8000;
                             powerups[b.type.toLowerCase()] = now + duration;
-                            
                             statusEl.innerText = b.type + " !!"; 
                             statusEl.style.opacity = 1;
                             if(statusEl.timer) clearTimeout(statusEl.timer);
@@ -281,7 +274,8 @@
                         }
                         
                         hitCount++;
-                        if (hitCount % 8 === 0) spawnWave();
+                        // 修改：達到計數時，只增加 2 層
+                        if (hitCount % 8 === 0) spawnWave(2);
                     }
                     break;
                 }
@@ -298,7 +292,6 @@
         ctx.save();
         if (shake > 0.5) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
 
-        // 1. 繪製粒子 (在最底層，使用加色混合模式讓火光更亮)
         ctx.globalCompositeOperation = 'lighter';
         particles.forEach(p => {
             ctx.fillStyle = p.color;
@@ -310,36 +303,29 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1.0;
 
-        // 護盾
         const now = Date.now();
         if (now < powerups.shield) {
             ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
             ctx.fillRect(0, canvasH - 10, canvasW, 10);
         }
 
-        // 擋板
         const paddleY = canvasH - 60;
         ctx.fillStyle = (now < powerups.long) ? '#0f0' : '#00d2ff';
         if(canvasW > 800) { ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle; }
         ctx.beginPath(); ctx.roundRect(paddle.x, paddleY, paddle.w, paddle.h, 8); ctx.fill();
         ctx.shadowBlur = 0;
 
-        // === 火球時間條 (新增功能) ===
         if (now < powerups.fireball) {
             const timeLeft = powerups.fireball - now;
             const pct = Math.max(0, timeLeft / FIRE_DURATION);
-            
-            // 畫在擋板下方
             const barW = paddle.w * pct;
             const barX = paddle.x + (paddle.w - barW) / 2;
-            
-            ctx.fillStyle = `rgba(255, 50, 0, ${0.5 + pct*0.5})`; // 越接近結束越透明
+            ctx.fillStyle = `rgba(255, 50, 0, ${0.5 + pct*0.5})`;
             ctx.shadowBlur = 10; ctx.shadowColor = 'red';
             ctx.fillRect(barX, paddleY + 20, barW, 4);
             ctx.shadowBlur = 0;
         }
 
-        // 磚塊
         bricks.forEach(b => {
             ctx.fillStyle = b.color;
             ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 4); ctx.fill();
@@ -349,22 +335,17 @@
             }
         });
 
-        // 球 (如果是火球，改成更亮的橘黃色，並增加一點光暈)
         balls.forEach(b => {
             if(!b.active) return;
             const isFire = now < powerups.fireball;
-            
             if(isFire) {
                 ctx.shadowBlur = 20; ctx.shadowColor = '#ff5500';
-                ctx.fillStyle = '#fff'; // 核心白
+                ctx.fillStyle = '#fff'; 
             } else {
                 ctx.fillStyle = '#fff';
             }
-            
             ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, Math.PI*2); ctx.fill();
             ctx.shadowBlur = 0;
-            
-            // 火球外圈
             if(isFire) {
                 ctx.fillStyle = '#ffaa00';
                 ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, Math.PI*2); ctx.fill();
@@ -399,10 +380,12 @@
         
         const startDx = (Math.random() > 0.5 ? 1 : -1) * 4;
         balls = [{ x: canvasW/2, y: canvasH - 80, dx: startDx, dy: -BASE_SPEED, active: true }];
-        powerups = { long: 0, fireball: 0, shield: 0, fast: 0 }; // 重置道具
+        powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
         
         isPlaying = true;
-        spawnWave();
+        
+        // 修改：開始時呼叫 spawnWave(5)，生成 5 層
+        spawnWave(5);
         
         if(animationId) cancelAnimationFrame(animationId);
         gameLoop();
