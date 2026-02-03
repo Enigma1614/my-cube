@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極限地雷 4.0：光譜旗艦版</title>
+    <style>
+        :root { --accent: #4cc9f0; --bg: #050510; --panel: rgba(255,255,255,0.08); }
+        body { background: var(--bg); color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; }
+        
+        /* UI 佈局 */
+        #ui-layer { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+        header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 5; }
+        .stats { display: flex; gap: 20px; font-weight: 800; font-size: 18px; color: var(--accent); }
+        .stats span { color: #fff; margin-left: 5px; }
+
+        /* 控制面板 */
+        #settings { 
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            background: var(--panel); padding: 10px 20px; border-radius: 50px;
+            display: flex; gap: 10px; pointer-events: auto; backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1); font-size: 13px;
+        }
+        select, input { background: #222; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 2px 5px; }
+
+        /* 畫布 */
+        canvas { display: block; image-rendering: -webkit-optimize-contrast; cursor: crosshair; }
+
+        /* 覆蓋層 */
+        #overlay { 
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8); 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 10; pointer-events: auto; backdrop-filter: blur(8px);
+        }
+        h1 { margin: 0; font-size: 42px; color: #ff0055; text-shadow: 0 0 20px red; }
+        button { 
+            padding: 15px 40px; font-size: 20px; background: var(--accent); 
+            border: none; border-radius: 50px; cursor: pointer; font-weight: bold; 
+            margin-top: 25px; box-shadow: 0 0 20px var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <header>
+            <div style="font-weight:900; letter-spacing:1px;">MINESWEEPER <span style="color:#ff0055">ULTRA</span></div>
+            <div class="stats">
+                <div>🚩<span><b id="flagCount">0</b></span></div>
+                <div>⏱️<span><b id="timer">0</b>s</span></div>
+            </div>
+        </header>
+
+        <div id="settings">
+            模式: 
+            <select id="modeSelect">
+                <option value="9,9,10">初級 (9x9)</option>
+                <option value="16,16,40" selected>中級 (16x16)</option>
+                <option value="30,16,99">高級 (30x16)</option>
+            </select>
+            <button style="padding:2px 10px; margin:0; font-size:12px;" onclick="initGame()">重設</button>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="msg-title">極限地雷 4.0</h1>
+        <p id="msg-desc">找出所有隱藏的地雷</p>
+        <button id="startBtn">START MISSION</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+(() => {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const flagEl = document.getElementById('flagCount');
+    const timeEl = document.getElementById('timer');
+    const overlay = document.getElementById('overlay');
+
+    let dpr, canvasW, canvasH, cellS;
+    let grid = [], rows, cols, mines, flags = 0, firstClick = true;
+    let isPlaying = false, startTime, timerInt;
+    let particles = [], ripples = [];
+
+    // --- 音效系統 ---
+    let audioCtx;
+    function playNote(f, type='sine', d=0.1, v=0.1) {
+        if(!audioCtx || audioCtx.state !== 'running') return;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(v, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    }
+
+    // --- 初始化 ---
+    function initGame() {
+        const [c, r, m] = document.getElementById('modeSelect').value.split(',').map(Number);
+        cols = c; rows = r; mines = m;
+        grid = []; flags = 0; firstClick = true;
+        clearInterval(timerInt); timeEl.innerText = "0s";
+        
+        setupSizing();
+        
+        // 建立空白棋盤
+        for(let y=0; y<rows; y++) {
+            grid[y] = [];
+            for(let x=0; x<cols; x++) {
+                grid[y][x] = { isMine: false, state: 'hidden', neighbor: 0, scale: 0.8, alpha: 0 };
+            }
+        }
+        flagEl.innerText = mines;
+        isPlaying = true;
+        overlay.style.display = 'none';
+        if(audioCtx) playNote(440, 'sine', 0.2);
+    }
+
+    function setupSizing() {
+        dpr = window.devicePixelRatio || 1;
+        canvasW = window.innerWidth;
+        canvasH = window.innerHeight;
+        canvas.width = canvasW * dpr;
+        canvas.height = canvasH * dpr;
+        ctx.scale(dpr, dpr);
+
+        // 自動計算格子大小以適應螢幕
+        const availableW = canvasW * 0.9;
+        const availableH = canvasH * 0.7;
+        cellS = Math.min(availableW / cols, availableH / rows, 45);
+    }
+
+    // --- 佈雷 (確保第一下不是雷) ---
+    function plantMines(ex, ey) {
+        let count = 0;
+        while(count < mines) {
+            let rx = Math.floor(Math.random()*cols), ry = Math.floor(Math.random()*rows);
+            // 避開點擊位置及其九宮格
+            if(!grid[ry][rx].isMine && Math.abs(rx-ex)>1 || Math.abs(ry-ey)>1) {
+                grid[ry][rx].isMine = true; count++;
+            }
+        }
+        // 計算鄰居數
+        for(let y=0; y<rows; y++) {
+            for(let x=0; x<cols; x++) {
+                if(grid[y][x].isMine) continue;
+                let n = 0;
+                for(let i=-1; i<=1; i++) for(let j=-1; j<=1; j++) {
+                    if(y+i>=0 && y+i<rows && x+j>=0 && x+j<cols && grid[y+i][x+j].isMine) n++;
+                }
+                grid[y][x].neighbor = n;
+            }
+        }
+        startTime = Date.now();
+        timerInt = setInterval(() => { timeEl.innerText = Math.floor((Date.now()-startTime)/1000) + "s"; }, 1000);
+    }
+
+    // --- 核心邏輯 ---
+    function openCell(x, y) {
+        if(!isPlaying || grid[y][x].state !== 'hidden') return;
+        
+        if(firstClick) { plantMines(x, y); firstClick = false; }
+
+        grid[y][x].state = 'revealed';
+        ripples.push({x: (x+0.5)*cellS, y: (y+0.5)*cellS, r: 0, a: 1});
+
+        if(grid[y][x].isMine) {
+            explode(x, y);
+            endGame(false);
+            return;
+        }
+
+        playNote(600 + grid[y][x].neighbor * 100, 'sine', 0.05, 0.05);
+
+        if(grid[y][x].neighbor === 0) {
+            for(let i=-1; i<=1; i++) for(let j=-1; j<=1; j++) {
+                if(y+i>=0 && y+i<rows && x+j>=0 && x+j<cols) openCell(x+j, y+i);
+            }
+        }
+        checkWin();
+    }
+
+    function toggleFlag(x, y) {
+        if(!isPlaying || (grid[y][x].state !== 'hidden' && grid[y][x].state !== 'flagged')) return;
+        if(grid[y][x].state === 'hidden') {
+            grid[y][x].state = 'flagged'; flags++;
+            playNote(800, 'triangle', 0.1);
+        } else {
+            grid[y][x].state = 'hidden'; flags--;
+            playNote(400, 'triangle', 0.1);
+        }
+        flagEl.innerText = mines - flags;
+    }
+
+    function explode(ex, ey) {
+        shake = 20;
+        playNote(100, 'sawtooth', 0.5, 0.2);
+        for(let i=0; i<50; i++) {
+            particles.push({
+                x: (ex+0.5)*cellS, y: (ey+0.5)*cellS,
+                vx: (Math.random()-0.5)*15, vy: (Math.random()-0.5)*15,
+                life: 1, color: '#ff0055'
+            });
+        }
+    }
+
+    function checkWin() {
+        let hiddenSafe = 0;
+        for(let y=0; y<rows; y++) for(let x=0; x<cols; x++) {
+            if(!grid[y][x].isMine && grid[y][x].state !== 'revealed') hiddenSafe++;
+        }
+        if(hiddenSafe === 0) endGame(true);
+    }
+
+    function endGame(win) {
+        isPlaying = false;
+        clearInterval(timerInt);
+        setTimeout(() => {
+            overlay.style.display = 'flex';
+            document.getElementById('msg-title').innerText = win ? "MISSION CLEAR" : "TERMINATED";
+            document.getElementById('msg-title').style.color = win ? "#00ff00" : "#ff0055";
+            document.getElementById('msg-desc').innerText = win ? "完美排除所有地雷！" : "偵測到炸彈引爆。";
+        }, 1000);
+    }
+
+    // --- 繪製系統 ---
+    let shake = 0;
+    function draw() {
+        ctx.save();
+        const offsetX = (canvasW - cols * cellS) / 2;
+        const offsetY = (canvasH - rows * cellS) / 2 + 30;
+
+        if(shake > 0) { ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake); shake *= 0.9; }
+        
+        ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvasW,canvasH);
+        ctx.translate(offsetX, offsetY);
+
+        for(let y=0; y<rows; y++) {
+            for(let x=0; x<cols; x++) {
+                const b = grid[y][x];
+                const px = x * cellS, py = y * cellS;
+
+                // 方格動畫緩動
+                if(b.state === 'revealed') b.scale += (1 - b.scale) * 0.2;
+                
+                ctx.beginPath();
+                ctx.roundRect(px+2, py+2, cellS-4, cellS-4, 5);
+
+                if(b.state === 'hidden' || b.state === 'flagged') {
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.shadowBlur = 0;
+                } else {
+                    ctx.fillStyle = b.isMine ? '#ff0055' : '#0a0a15';
+                    if(!b.isMine) { ctx.strokeStyle = 'rgba(76,201,240,0.3)'; ctx.stroke(); }
+                }
+                ctx.fill();
+
+                if(b.state === 'flagged') {
+                    ctx.fillStyle = '#ffcf33'; ctx.font = `${cellS*0.5}px Arial`;
+                    ctx.fillText('🚩', px+cellS*0.25, py+cellS*0.7);
+                }
+
+                if(b.state === 'revealed' && !b.isMine && b.neighbor > 0) {
+                    const colors = ['', '#4cc9f0', '#00ff00', '#ff4d6d', '#cc00ff', '#ffaa00', '#00d2ff', '#fff', '#888'];
+                    ctx.fillStyle = colors[b.neighbor];
+                    ctx.font = `bold ${cellS*0.6}px system-ui`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(b.neighbor, px+cellS/2, py+cellS*0.7);
+                }
+                if(b.state === 'revealed' && b.isMine) {
+                    ctx.fillStyle = '#fff'; ctx.fillText('💣', px+cellS*0.2, py+cellS*0.75);
+                }
+            }
+        }
+
+        // 繪製波紋
+        ripples.forEach((r, i) => {
+            ctx.beginPath(); ctx.arc(r.x - offsetX, r.y - offsetY, r.r, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(76, 201, 240, ${r.a})`; ctx.lineWidth = 2; ctx.stroke();
+            r.r += 5; r.a -= 0.05;
+            if(r.a <= 0) ripples.splice(i, 1);
+        });
+
+        // 繪製粒子
+        particles.forEach((p, i) => {
+            ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x - offsetX, p.y - offsetY, 3, 0, Math.PI*2); ctx.fill();
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            if(p.life <= 0) particles.splice(i, 1);
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+        requestAnimationFrame(draw);
+    }
+
+    // --- 操作監聽 ---
+    let longPressTimer, lastTouch;
+    
+    const getCoords = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const offsetX = (canvasW - cols * cellS) / 2;
+        const offsetY = (canvasH - rows * cellS) / 2 + 30;
+        const x = Math.floor((clientX - offsetX) / cellS);
+        const y = Math.floor((clientY - offsetY) / cellS);
+        return (x>=0 && x<cols && y>=0 && y<rows) ? {x, y} : null;
+    };
+
+    canvas.onmousedown = (e) => {
+        if(!isPlaying) return;
+        const p = getCoords(e);
+        if(!p) return;
+        if(e.button === 2) toggleFlag(p.x, p.y);
+        else openCell(p.x, p.y);
+    };
+    canvas.oncontextmenu = (e) => e.preventDefault();
+
+    canvas.ontouchstart = (e) => {
+        const p = getCoords(e);
+        if(!p) return;
+        lastTouch = p;
+        longPressTimer = setTimeout(() => {
+            toggleFlag(p.x, p.y);
+            longPressTimer = null;
+            if(navigator.vibrate) navigator.vibrate(50);
+        }, 350);
+    };
+    canvas.ontouchend = (e) => {
+        if(longPressTimer) {
+            clearTimeout(longPressTimer);
+            if(lastTouch) openCell(lastTouch.x, lastTouch.y);
+        }
+    };
+
+    document.getElementById('startBtn').onclick = () => {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        initGame();
+    };
+
+    setupSizing();
+    draw();
+})();
+</script>
+</body>
+</html>
