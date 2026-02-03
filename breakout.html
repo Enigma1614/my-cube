@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極限爆破：戰術平衡版</title>
+    <title>極限爆破：智能補磚版</title>
     <style>
         :root { --accent: #00d2ff; --bg: #050510; }
         body { background: var(--bg); color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; user-select: none; }
@@ -49,7 +49,7 @@
         <header>
             <div class="header-left">
                 <a href="index.html" class="home-btn">🏠</a>
-                <div class="game-title">BREAKOUT <span style="color:#00ffff; font-size:0.8em">TACTIC</span></div>
+                <div class="game-title">BREAKOUT <span style="color:#00ffff; font-size:0.8em">AUTO</span></div>
             </div>
             <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
         </header>
@@ -57,10 +57,10 @@
     </div>
 
     <div id="overlay">
-        <h1 id="m-title">極限爆破 TACTIC</h1>
-        <p id="m-desc" style="color:#ccc; margin-top:10px;">平衡修正 + 冰凍與雷射道具</p>
+        <h1 id="m-title">極限爆破 AUTO</h1>
+        <p id="m-desc" style="color:#ccc; margin-top:10px;">低磚塊自動補給 + 球數上限控制</p>
         <button id="startBtn">開始遊戲</button>
-        <div style="color:#888; font-size:12px; margin-top:15px;">冰凍可暫停磚塊掉落 | 雷射自動清理底層</div>
+        <div style="color:#888; font-size:12px; margin-top:15px;">少於5磚自動補3層 | 分裂球上限5顆</div>
     </div>
 
 <script>
@@ -78,21 +78,17 @@
     const BASE_SPEED = 7.5; 
     const FIRE_DURATION = 6000; 
     
-    // 平衡性設定：最小生成間隔 (毫秒)
+    // 平衡與生成參數
     const MIN_SPAWN_INTERVAL = 2000; 
-    let lastSpawnTime = 0; // 上次生成磚塊的時間
+    let lastSpawnTime = 0; 
+    let isSpawning = false; // 新增：標記是否正在生成磚塊中，防止重複觸發
 
     let paddle = { x: 0, w: 100, h: 15, targetW: 100 };
     
     let powerups = { 
-        long: 0,       
-        fireball: 0,   
-        shield: 0,     
-        freeze: 0,    // 新增：冰凍時間
-        laser: 0,     // 新增：雷射時間
-        fast: false    
+        long: 0, fireball: 0, shield: 0, freeze: 0, laser: 0, fast: false    
     };
-    let lastLaserShot = 0; // 雷射發射計時器
+    let lastLaserShot = 0;
     let audioCtx;
 
     // 音效
@@ -125,7 +121,7 @@
 
     // 粒子系統
     function spawnExplosion(x, y, color) {
-        const count = 10; // 稍微減少粒子量優化效能
+        const count = 10;
         for(let i=0; i<count; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = Math.random() * 3 + 1;
@@ -154,13 +150,15 @@
         });
     }
 
-    // 生成磚塊 (包含冷卻邏輯)
+    // 生成磚塊 (新增 isSpawning 鎖)
     function spawnWave(lines = 2, force = false) {
         const now = Date.now();
-        // 如果不是強制生成(開局)，且距離上次生成太近，則忽略這次生成請求
-        // 這就是防止瞬間暴斃的關鍵！
+        
+        // 如果正在生成中，或者還在冷卻時間內(且非強制)，則不執行
+        if (isSpawning) return;
         if (!force && now - lastSpawnTime < MIN_SPAWN_INTERVAL) return;
         
+        isSpawning = true; // 鎖定
         lastSpawnTime = now;
         shake = 10;
         playSfx(100, 'sawtooth', 0.5);
@@ -178,8 +176,8 @@
                     
                     if (r < 0.08) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
                     else if (r < 0.12) { type = 'SPLIT'; color = '#00ffff'; } 
-                    else if (r < 0.16) { type = 'FREEZE'; color = '#afeeee'; } // 冰凍道具
-                    else if (r < 0.20) { type = 'LASER'; color = '#ff0000'; } // 雷射道具
+                    else if (r < 0.16) { type = 'FREEZE'; color = '#afeeee'; }
+                    else if (r < 0.20) { type = 'LASER'; color = '#ff0000'; }
                     else if (r < 0.24) { type = 'FIREBALL'; color = '#ffaa00'; } 
                     else if (r < 0.28) { type = 'SHIELD'; color = '#00d2ff'; }
                     else if (r < 0.32) { type = 'SPEED'; color = '#cc00ff'; }
@@ -191,6 +189,11 @@
                         row: 0, col: c, status: 1, type, color, hits
                     });
                 }
+                
+                // 最後一層生成完畢後，解鎖
+                if (i === lines - 1) {
+                    isSpawning = false;
+                }
             }, i * 120);
         }
     }
@@ -199,6 +202,14 @@
         if (shake > 0) shake *= 0.9;
         const now = Date.now();
         const paddleY = canvasH - 60;
+
+        // === 自動補磚邏輯 ===
+        // 檢查目前存活的磚塊數量
+        const activeBricksCount = bricks.filter(b => b.status === 1).length;
+        // 如果磚塊少於 5 個，且目前沒有正在生成，則強制生成 3 層
+        if (activeBricksCount < 5 && !isSpawning) {
+            spawnWave(3, true); // force = true
+        }
         
         // 粒子更新
         for(let i=particles.length-1; i>=0; i--) {
@@ -208,27 +219,25 @@
             if(p.life <= 0) particles.splice(i, 1);
         }
 
-        // 雷射射擊邏輯
-        if (now < powerups.laser && now - lastLaserShot > 400) { // 每 0.4 秒射擊一次
+        // 雷射射擊
+        if (now < powerups.laser && now - lastLaserShot > 400) { 
             lastLaserShot = now;
             lasers.push({x: paddle.x + 10, y: paddleY, active: true});
             lasers.push({x: paddle.x + paddle.w - 10, y: paddleY, active: true});
             playSfx(800, 'square', 0.05);
         }
 
-        // 雷射移動與碰撞
         for(let i=lasers.length-1; i>=0; i--) {
             let l = lasers[i];
-            l.y -= 15; // 雷射速度
+            l.y -= 15; 
             if(l.y < 0) { l.active = false; lasers.splice(i, 1); continue; }
 
-            // 雷射撞磚塊
             for(let j=0; j<bricks.length; j++) {
                 let b = bricks[j];
                 if(b.status === 1 && l.x > b.x && l.x < b.x + b.w && l.y > b.y && l.y < b.y + b.h) {
                     b.hits--;
                     l.active = false; 
-                    lasers.splice(i, 1); // 雷射消失
+                    lasers.splice(i, 1); 
                     spawnExplosion(b.x + b.w/2, b.y + b.h/2, '#ff0000');
                     if(b.hits <= 0) handleBrickDestroy(b);
                     break; 
@@ -236,11 +245,11 @@
             }
         }
 
-        // 擋板寬度
+        // 擋板
         let targetW = (now < powerups.long) ? canvasW * 0.4 : Math.min(150, canvasW * 0.25);
         paddle.w += (targetW - paddle.w) * 0.15;
 
-        // 磚塊移動 (如果在冰凍狀態，則不移動 y)
+        // 磚塊
         bricks = bricks.filter(b => b.status === 1);
         const isFrozen = now < powerups.freeze;
         
@@ -272,12 +281,10 @@
             ball.x += ball.dx;
             ball.y += ball.dy;
 
-            // 邊界
             if (ball.x < 5) { ball.x = 5; ball.dx = Math.abs(ball.dx); playSfx(300); } 
             else if (ball.x > canvasW - 5) { ball.x = canvasW - 5; ball.dx = -Math.abs(ball.dx); playSfx(300); }
             if (ball.y < 5) { ball.y = 5; ball.dy = Math.abs(ball.dy); playSfx(300); }
 
-            // 擋板
             if (ball.dy > 0 && ball.y + 8 >= paddleY && ball.y - 8 <= paddleY + paddle.h) {
                 if (ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
                     ball.y = paddleY - 8;
@@ -290,7 +297,6 @@
                 }
             }
 
-            // 護盾
             if (now < powerups.shield && ball.y > canvasH - 15) {
                 ball.y = canvasH - 15;
                 ball.dy = -Math.abs(ball.dy); 
@@ -299,7 +305,6 @@
             }
             if (ball.y > canvasH + 20) ball.active = false;
 
-            // 磚塊碰撞
             for (let j = 0; j < bricks.length; j++) {
                 let b = bricks[j];
                 if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
@@ -323,7 +328,6 @@
         if (balls.filter(b => b.active).length === 0) endGame("GAME OVER", "球已耗盡");
     }
 
-    // 處理磚塊銷毀與道具邏輯
     function handleBrickDestroy(b, ball = null) {
         const now = Date.now();
         b.status = 0; 
@@ -337,15 +341,24 @@
                 msg = "SPEED UP (PERMANENT)!";
             } 
             else if (b.type === 'SPLIT' && ball) {
-                msg = "MULTIBALL !!";
-                balls.push({ x: ball.x, y: ball.y, dx: -ball.dx + (Math.random()-0.5)*2, dy: ball.dy, active: true });
-                balls.push({ x: ball.x, y: ball.y, dx: ball.dx * 0.5, dy: -ball.dy, active: true });
+                // === 修正：分裂球邏輯 ===
+                // 檢查目前場上球的數量
+                const currentBalls = balls.filter(bl => bl.active).length;
+                
+                if (currentBalls < 5) {
+                    msg = "MULTIBALL !!";
+                    // 只分裂出兩顆，且總數盡量不超過 5 (這裡做軟限制)
+                    balls.push({ x: ball.x, y: ball.y, dx: -ball.dx + (Math.random()-0.5)*2, dy: ball.dy, active: true });
+                    balls.push({ x: ball.x, y: ball.y, dx: ball.dx * 0.5, dy: -ball.dy, active: true });
+                } else {
+                    msg = "MAX BALLS!"; // 提示球數已滿
+                }
             }
             else {
                 let duration = 8000;
                 if (b.type === 'FIREBALL') duration = FIRE_DURATION;
-                if (b.type === 'FREEZE') duration = 5000; // 冰凍 5 秒
-                if (b.type === 'LASER') duration = 6000; // 雷射 6 秒
+                if (b.type === 'FREEZE') duration = 5000;
+                if (b.type === 'LASER') duration = 6000;
                 
                 powerups[b.type.toLowerCase()] = now + duration;
             }
@@ -357,7 +370,7 @@
         }
         
         hitCount++;
-        // 修正：即便打很快，spawnWave 內部也有冷卻保護
+        // 一般生成邏輯 (如果沒觸發自動補磚，這裡每8個也會觸發，但會被 MIN_SPAWN_INTERVAL 保護)
         if (hitCount % 8 === 0) spawnWave(2);
     }
 
@@ -368,7 +381,6 @@
         const now = Date.now();
         const isFrozen = now < powerups.freeze;
 
-        // 如果冰凍中，畫布邊緣發光
         if (isFrozen) {
             ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
             ctx.lineWidth = 10;
@@ -378,7 +390,6 @@
         ctx.save();
         if (shake > 0.5) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
 
-        // 粒子
         ctx.globalCompositeOperation = 'lighter';
         particles.forEach(p => {
             ctx.fillStyle = p.color;
@@ -390,26 +401,22 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1.0;
 
-        // 護盾
         if (now < powerups.shield) {
             ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
             ctx.fillRect(0, canvasH - 10, canvasW, 10);
         }
 
-        // 繪製雷射
         ctx.fillStyle = '#ff0000';
         lasers.forEach(l => {
             ctx.fillRect(l.x-2, l.y, 4, 15);
         });
 
-        // 擋板
         const paddleY = canvasH - 60;
         ctx.fillStyle = (now < powerups.long) ? '#0f0' : '#00d2ff';
         if(canvasW > 800) { ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle; }
         ctx.beginPath(); ctx.roundRect(paddle.x, paddleY, paddle.w, paddle.h, 8); ctx.fill();
         ctx.shadowBlur = 0;
 
-        // 道具時間條 (同時顯示多個)
         let barOffset = 20;
         if (now < powerups.fireball) drawBar(now, powerups.fireball, FIRE_DURATION, 'rgba(255, 50, 0, 0.8)', barOffset);
         if (now < powerups.freeze) drawBar(now, powerups.freeze, 5000, 'rgba(0, 255, 255, 0.8)', barOffset += 6);
@@ -424,10 +431,8 @@
             ctx.fillRect(barX, paddleY + yOff, barW, 4);
         }
 
-        // 磚塊
         bricks.forEach(b => {
             ctx.fillStyle = b.color;
-            // 冰凍狀態下，磚塊外框變藍
             if(isFrozen) {
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 1;
@@ -444,7 +449,6 @@
             }
         });
 
-        // 球
         balls.forEach(b => {
             if(!b.active) return;
             const isFire = now < powerups.fireball;
@@ -501,10 +505,10 @@
         balls = [{ x: canvasW/2, y: canvasH - 80, dx: startDx, dy: -BASE_SPEED, active: true }];
         
         powerups = { long: 0, fireball: 0, shield: 0, freeze: 0, laser: 0, fast: false };
-        lastSpawnTime = 0; // 重置生成時間
+        lastSpawnTime = 0; 
         
         isPlaying = true;
-        spawnWave(5, true); // 強制生成 5 層
+        spawnWave(5, true); 
         
         if(animationId) cancelAnimationFrame(animationId);
         gameLoop();
