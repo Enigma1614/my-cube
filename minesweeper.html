@@ -3,459 +3,391 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>踩地雷：霓虹捲軸版</title>
+    <title>極限踩地雷</title>
     <style>
-        :root { --bg: #050510; --accent: #00f2ff; --danger: #ff0055; --panel: #161b22; }
-        body { 
+        :root { --bg: #050510; --accent: #00d2ff; --cell-bg: #1a1a2e; --cell-hover: #262642; }
+        body {
             background: var(--bg); color: white; margin: 0; 
-            font-family: "Segoe UI", system-ui, sans-serif; 
-            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-            user-select: none;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            height: 100vh; overflow: hidden; user-select: none;
+            touch-action: manipulation; /* 優化觸控反應 */
         }
 
-        /* 頂部資訊列 */
+        /* === 上方資訊區 === */
         header {
-            padding: 10px 15px; background: rgba(22, 27, 34, 0.95);
-            border-bottom: 1px solid rgba(255,255,255,0.15);
-            display: flex; justify-content: space-between; align-items: center;
-            z-index: 10; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            width: 100%; padding: 15px 0;
+            background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center; flex-shrink: 0;
+            display: flex; justify-content: center; align-items: center; gap: 20px;
         }
-        
-        .header-left { display: flex; align-items: center; gap: 12px; }
-        
-        .home-btn {
-            text-decoration: none; font-size: 18px; color: #fff;
-            background: rgba(255,255,255,0.1); width: 36px; height: 36px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.2s;
-        }
-        .home-btn:active { transform: scale(0.9); background: var(--accent); color: #000; border-color: var(--accent); }
+        .status-text { font-size: 24px; font-weight: 900; color: #fff; text-shadow: 0 0 10px var(--accent); }
+        .mine-count { font-family: monospace; font-size: 20px; color: #f1c40f; }
 
-        .game-title { font-weight: 900; font-size: 18px; letter-spacing: 1px; color: #fff; }
-        
-        .hud { display: flex; gap: 15px; font-size: 18px; font-weight: bold; font-family: monospace; }
-        .hud-item { color: var(--accent); display: flex; align-items: center; gap: 5px; }
-        .hud-item span { color: #fff; text-shadow: 0 0 5px var(--accent); min-width: 30px; text-align: right; }
-
-        /* 遊戲捲軸區域 */
+        /* === 遊戲主體 === */
         #game-container {
-            flex-grow: 1; overflow: auto; 
-            position: relative;
-            background: radial-gradient(circle, #0a0a1a 0%, #000 100%);
-            display: grid; place-items: center;
-            touch-action: none; 
-            -webkit-overflow-scrolling: touch;
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            width: 100%; overflow: auto; padding: 20px; box-sizing: border-box;
         }
 
-        canvas { 
-            display: block; 
-            box-shadow: 0 0 40px rgba(0, 242, 255, 0.05);
+        #grid {
+            display: grid;
+            gap: 2px;
+            background: #333; /* 格子縫隙顏色 */
+            border: 4px solid #333;
             border-radius: 4px;
-            margin: 20px;
+            /* 禁止瀏覽器預設右鍵選單 */
+            pointer-events: auto;
         }
 
-        /* 底部控制面板 */
-        #controls {
-            padding: 15px; background: var(--panel);
-            border-top: 1px solid rgba(255,255,255,0.1);
-            display: flex; justify-content: center; gap: 10px;
-            z-index: 10; flex-shrink: 0;
-            padding-bottom: max(15px, env(safe-area-inset-bottom));
+        .cell {
+            width: 35px; height: 35px;
+            background: var(--cell-bg);
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 20px; cursor: pointer;
+            transition: background 0.1s;
         }
-        select, button {
-            padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            background: #222; color: white; font-size: 14px; outline: none;
-        }
-        button.restart {
-            background: var(--accent); color: #000; font-weight: bold; border: none;
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
-        }
-        button:active { transform: scale(0.96); }
+        
+        /* 尚未挖開的格子 */
+        .cell.closed:active { background: var(--cell-hover); }
+        
+        /* 挖開的格子 */
+        .cell.open { background: #0b0b15; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+        
+        /* 爆炸的地雷 */
+        .cell.boom { background: #ff0055 !important; animation: shake 0.5s; }
+        
+        /* 遊戲結束顯示的地雷 */
+        .cell.revealed-mine { background: #2a0a1a; border: 1px solid #ff0055; }
 
-        /* 結算畫面 */
-        #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.85);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 20; backdrop-filter: blur(5px); display: none;
+        /* 數字顏色 */
+        .c-1 { color: #4cc9f0; }
+        .c-2 { color: #4eff4e; }
+        .c-3 { color: #ff4d6d; }
+        .c-4 { color: #9d4edd; }
+        .c-5 { color: #ff9e00; }
+        .c-6 { color: #00ffff; }
+        .c-7 { color: #fff; }
+        .c-8 { color: #777; }
+
+        /* === 下方控制區 === */
+        footer {
+            width: 100%; padding: 20px;
+            background: rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            flex-shrink: 0; min-height: 100px;
         }
-        h1 { font-size: 40px; margin: 0 0 10px 0; text-shadow: 0 0 20px currentColor; }
-        p { color: #ccc; margin-bottom: 20px; }
+
+        /* 重新開始按鈕 (預設隱藏，失敗顯示) */
+        #restartBtn {
+            padding: 12px 50px; font-size: 20px; font-weight: bold;
+            background: var(--accent); border: none; border-radius: 50px;
+            color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
+            display: none; /* 初始隱藏 */
+        }
+        #restartBtn:active { transform: scale(0.95); }
+
+        .hint { color: #888; font-size: 12px; margin-top: 5px; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <div class="header-left">
-            <a href="index.html" class="home-btn">🏠</a>
-            <div class="game-title">MINESWEEPER</div>
-        </div>
-        <div class="hud">
-            <div class="hud-item">🚩 <span id="flagVal">0</span></div>
-            <div class="hud-item">⏱️ <span id="timeVal">0</span></div>
-        </div>
+        <div class="status-text" id="status">MINESWEEPER</div>
+        <div class="mine-count">💣 <span id="mineCount">0</span></div>
     </header>
 
     <div id="game-container">
-        <canvas id="c"></canvas>
+        <div id="grid"></div>
     </div>
 
-    <div id="controls">
-        <select id="mode">
-            <option value="9,9,10">初級 (9x9)</option>
-            <option value="16,16,40" selected>中級 (16x16)</option>
-            <option value="30,16,99">高級 (30x16)</option>
-            <option value="custom">⚙️ 自訂...</option>
-        </select>
-        <button class="restart" onclick="startGame()">↺ 重新開始</button>
-    </div>
-
-    <div id="overlay">
-        <h1 id="end-title">GAME OVER</h1>
-        <p id="end-desc">任務失敗</p>
-        <button class="restart" onclick="startGame()">再次挑戰</button>
-    </div>
+    <footer>
+        <button id="restartBtn">重新開始</button>
+        <div class="hint">🖱️ 左鍵:挖開 / 右鍵:插旗<br>📱 短按:挖開 / 長按:插旗</div>
+    </footer>
 
 <script>
-    const canvas = document.getElementById('c');
-    const ctx = canvas.getContext('2d');
-    const container = document.getElementById('game-container');
-    const overlay = document.getElementById('overlay');
-    const flagEl = document.getElementById('flagVal');
-    const timeEl = document.getElementById('timeVal');
-    const modeSel = document.getElementById('mode');
+    const grid = document.getElementById('grid');
+    const statusEl = document.getElementById('status');
+    const mineCountEl = document.getElementById('mineCount');
+    const restartBtn = document.getElementById('restartBtn');
 
-    let cols, rows, mines, cellSize = 34;
-    let grid = [], particles = [];
-    let state = 'idle'; 
-    let flags = 0, startTime = 0, timerInt = null;
-    let dpr = window.devicePixelRatio || 1;
+    // 遊戲設定
+    let ROWS = 12;
+    let COLS = 10;
+    let MINES = 15;
     
-    // 音效
+    let board = []; // 儲存格子資料
+    let isGameOver = false;
+    let flagsLeft = MINES;
+
+    // 音效環境
     let audioCtx;
-    function playSfx(type) {
+    function playTone(freq, type='sine', d=0.1) {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if(audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
+        const o = audioCtx.createOscillator();
         const g = audioCtx.createGain();
-        osc.connect(g); g.connect(audioCtx.destination);
-        const now = audioCtx.currentTime;
-        
-        if(type === 'click') {
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.05);
-            g.gain.setValueAtTime(0.1, now);
-            g.gain.linearRampToValueAtTime(0, now + 0.05);
-            osc.start(); osc.stop(now + 0.05);
-        } else if(type === 'flag') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(400, now);
-            g.gain.setValueAtTime(0.1, now);
-            g.gain.linearRampToValueAtTime(0, now + 0.1);
-            osc.start(); osc.stop(now + 0.1);
-        } else if(type === 'boom') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(100, now);
-            osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
-            g.gain.setValueAtTime(0.3, now);
-            g.gain.linearRampToValueAtTime(0, now + 0.5);
-            osc.start(); osc.stop(now + 0.5);
-        } else if(type === 'win') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.linearRampToValueAtTime(800, now + 0.2);
-            g.gain.setValueAtTime(0.1, now);
-            g.gain.linearRampToValueAtTime(0, now + 0.4);
-            osc.start(); osc.stop(now + 0.4);
-        }
+        o.type = type; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
     }
 
-    function startGame() {
-        overlay.style.display = 'none';
-        state = 'idle';
-        flags = 0;
-        clearInterval(timerInt);
-        timeEl.innerText = '0';
-        particles = [];
-
-        // --- 修正：自訂模式邏輯 ---
-        let val = modeSel.value;
-        if(val === 'custom') {
-            // 跳出輸入框，並給予預設值
-            let c = prompt("請輸入寬度 (格數 5-50):", "20");
-            let r = prompt("請輸入高度 (格數 5-50):", "30");
-            let m = prompt("請輸入地雷數:", "100");
-
-            // 如果玩家按取消，預設回中級
-            if(c === null || r === null || m === null) {
-                modeSel.value = "16,16,40";
-                [cols, rows, mines] = [16, 16, 40];
-            } else {
-                // 轉換數字並加上限制，避免瀏覽器當機
-                cols = parseInt(c) || 20;
-                rows = parseInt(r) || 30;
-                mines = parseInt(m) || 100;
-
-                cols = Math.max(5, Math.min(cols, 50)); // 限制寬度 5~50
-                rows = Math.max(5, Math.min(rows, 50)); // 限制高度 5~50
-                mines = Math.max(1, Math.min(mines, (cols * rows) - 1)); // 地雷不能比格子多
-            }
+    // 動態計算網格大小
+    function resizeGame() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        // 根據螢幕大小調整難度與格子數
+        if(w < 600) {
+            COLS = 10; ROWS = 14; MINES = 15;
         } else {
-            [cols, rows, mines] = val.split(',').map(Number);
+            COLS = 18; ROWS = 12; MINES = 30;
         }
-        flagEl.innerText = mines;
+        
+        // 重新開始
+        initGame();
+    }
 
-        // 初始化畫布
-        canvas.width = cols * cellSize * dpr;
-        canvas.height = rows * cellSize * dpr;
-        canvas.style.width = (cols * cellSize) + 'px';
-        canvas.style.height = (rows * cellSize) + 'px';
-        ctx.scale(dpr, dpr);
+    function initGame() {
+        isGameOver = false;
+        flagsLeft = MINES;
+        statusEl.innerText = "MINESWEEPER";
+        statusEl.style.color = "#fff";
+        mineCountEl.innerText = flagsLeft;
+        restartBtn.style.display = 'none'; // 隱藏重來按鈕
+        
+        // 設定 CSS Grid
+        grid.style.gridTemplateColumns = `repeat(${COLS}, 35px)`;
+        grid.innerHTML = '';
+        board = [];
 
-        // 初始化網格
-        grid = [];
-        for(let y=0; y<rows; y++) {
+        // 1. 建立資料結構
+        for (let r = 0; r < ROWS; r++) {
             let row = [];
-            for(let x=0; x<cols; x++) {
-                row.push({ isMine: false, state: 'hidden', neighbor: 0, x: x, y: y, anim: 0 });
-            }
-            grid.push(row);
-        }
-        draw();
-    }
+            for (let c = 0; c < COLS; c++) {
+                // 建立 DOM
+                const cell = document.createElement('div');
+                cell.classList.add('cell', 'closed');
+                cell.dataset.r = r;
+                cell.dataset.c = c;
+                
+                // 綁定事件
+                attachEvents(cell, r, c);
 
-    function placeMines(firstX, firstY) {
-        let placed = 0;
-        while(placed < mines) {
-            let x = Math.floor(Math.random() * cols);
-            let y = Math.floor(Math.random() * rows);
-            
-            // 戰術修正：只避開第一點擊的那一格，讓周圍可能有雷
-            if(!grid[y][x].isMine && (x !== firstX || y !== firstY)) {
-                grid[y][x].isMine = true;
-                placed++;
+                grid.appendChild(cell);
+                
+                // 資料物件
+                row.push({
+                    r, c,
+                    isMine: false,
+                    isOpen: false,
+                    isFlagged: false,
+                    count: 0,
+                    element: cell
+                });
+            }
+            board.push(row);
+        }
+
+        // 2. 佈雷
+        let minesPlaced = 0;
+        while(minesPlaced < MINES) {
+            const rr = Math.floor(Math.random() * ROWS);
+            const cc = Math.floor(Math.random() * COLS);
+            if(!board[rr][cc].isMine) {
+                board[rr][cc].isMine = true;
+                minesPlaced++;
             }
         }
-        
-        for(let y=0; y<rows; y++) {
-            for(let x=0; x<cols; x++) {
-                if(grid[y][x].isMine) continue;
-                let n = 0;
-                for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++) {
-                    let ny=y+dy, nx=x+dx;
-                    if(ny>=0 && ny<rows && nx>=0 && nx<cols && grid[ny][nx].isMine) n++;
+
+        // 3. 計算周圍地雷數
+        for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+                if(!board[r][c].isMine) {
+                    let count = 0;
+                    // 檢查九宮格
+                    for(let i=-1; i<=1; i++) {
+                        for(let j=-1; j<=1; j++) {
+                            const nr = r+i, nc = c+j;
+                            if(nr>=0 && nr<ROWS && nc>=0 && nc<COLS && board[nr][nc].isMine) {
+                                count++;
+                            }
+                        }
+                    }
+                    board[r][c].count = count;
                 }
-                grid[y][x].neighbor = n;
             }
         }
-        state = 'playing';
-        startTime = Date.now();
-        timerInt = setInterval(() => {
-            timeEl.innerText = Math.floor((Date.now() - startTime)/1000);
-        }, 1000);
     }
 
-    function reveal(x, y) {
-        if(x<0 || x>=cols || y<0 || y>=rows) return;
-        let cell = grid[y][x];
-        if(cell.state !== 'hidden') return;
+    // 事件綁定 (包含長按處理)
+    function attachEvents(cell, r, c) {
+        let timer;
+        let isLongPress = false;
 
-        if(state === 'idle') placeMines(x, y);
+        // 觸控開始 (手機)
+        cell.addEventListener('touchstart', (e) => {
+            if(isGameOver) return;
+            isLongPress = false;
+            timer = setTimeout(() => {
+                isLongPress = true;
+                playTone(300, 'square', 0.05); // 震動或音效提示
+                if(navigator.vibrate) navigator.vibrate(50);
+                toggleFlag(r, c);
+            }, 500); // 500ms 長按判定
+        }, {passive: false});
 
-        cell.state = 'revealed';
-        cell.anim = 1; 
+        // 觸控結束
+        cell.addEventListener('touchend', (e) => {
+            if(isGameOver) return;
+            clearTimeout(timer);
+            if(!isLongPress) {
+                e.preventDefault(); // 防止觸發 click
+                reveal(r, c);
+            }
+        });
+
+        // 滑鼠點擊 (電腦)
+        cell.addEventListener('mousedown', (e) => {
+            if(isGameOver) return;
+            if(e.button === 0) { // 左鍵
+                reveal(r, c);
+            } else if(e.button === 2) { // 右鍵
+                toggleFlag(r, c);
+            }
+        });
+
+        // 禁止右鍵選單
+        cell.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    // 插旗邏輯
+    function toggleFlag(r, c) {
+        const cellData = board[r][c];
+        if(cellData.isOpen) return;
+
+        cellData.isFlagged = !cellData.isFlagged;
+        cellData.element.innerText = cellData.isFlagged ? '🚩' : '';
         
-        if(cell.isMine) {
-            gameOver(false, x, y);
+        flagsLeft += cellData.isFlagged ? -1 : 1;
+        mineCountEl.innerText = flagsLeft;
+    }
+
+    // 挖開邏輯
+    function reveal(r, c) {
+        // 邊界檢查
+        if(r < 0 || r >= ROWS || c < 0 || c >= COLS) return;
+        
+        const cellData = board[r][c];
+        if(cellData.isOpen || cellData.isFlagged || isGameOver) return;
+
+        cellData.isOpen = true;
+        cellData.element.classList.remove('closed');
+        cellData.element.classList.add('open');
+
+        // 踩到雷
+        if(cellData.isMine) {
+            cellData.element.classList.add('boom');
+            cellData.element.innerText = '💥';
+            gameOver(false);
             return;
         }
 
-        playSfx('click');
-        if(cell.neighbor === 0) {
-            for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++) reveal(x+dx, y+dy);
+        playTone(600 + (Math.random()*200));
+
+        // 顯示數字
+        if(cellData.count > 0) {
+            cellData.element.innerText = cellData.count;
+            cellData.element.classList.add(`c-${cellData.count}`);
+        } else {
+            // 如果是 0，擴散 (Flood Fill)
+            for(let i=-1; i<=1; i++) {
+                for(let j=-1; j<=1; j++) {
+                    reveal(r+i, c+j);
+                }
+            }
         }
+        
         checkWin();
     }
 
-    function toggleFlag(x, y) {
-        if(state === 'over') return;
-        let cell = grid[y][x];
-        if(cell.state === 'revealed') return;
-
-        if(cell.state === 'hidden') {
-            if(flags < mines) {
-                cell.state = 'flagged';
-                flags++;
-                playSfx('flag');
-                if(navigator.vibrate) navigator.vibrate(50);
-            }
-        } else {
-            cell.state = 'hidden';
-            flags--;
-            playSfx('flag');
-        }
-        flagEl.innerText = mines - flags;
-    }
-
-    function gameOver(win, ex, ey) {
-        state = 'over';
-        clearInterval(timerInt);
-        if(!win) {
-            playSfx('boom');
-            if(navigator.vibrate) navigator.vibrate(300);
-            for(let i=0; i<30; i++) {
-                particles.push({
-                    x: ex * cellSize + cellSize/2, y: ey * cellSize + cellSize/2,
-                    vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
-                    life: 1.0, color: '#ff0055'
-                });
-            }
-            grid.forEach(row => row.forEach(c => {
-                if(c.isMine) c.state = 'revealed';
-            }));
-            document.getElementById('end-title').innerText = "BOOM!";
-            document.getElementById('end-title').style.color = "#ff0055";
-            document.getElementById('end-desc').innerText = "觸發地雷";
-        } else {
-            playSfx('win');
-            document.getElementById('end-title').innerText = "SUCCESS";
-            document.getElementById('end-title').style.color = "#00f2ff";
-            document.getElementById('end-desc').innerText = "任務完成";
-        }
-        setTimeout(() => overlay.style.display = 'flex', 1000);
-    }
-
+    // 檢查是否勝利
     function checkWin() {
-        let covered = 0;
-        grid.forEach(r => r.forEach(c => {
-            if(!c.isMine && c.state !== 'revealed') covered++;
-        }));
-        if(covered === 0) gameOver(true);
+        let closedCount = 0;
+        for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+                if(!board[r][c].isOpen) closedCount++;
+            }
+        }
+        if(closedCount === MINES) {
+            gameOver(true);
+        }
     }
 
-    function draw() {
-        ctx.fillStyle = '#111';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        grid.forEach(row => row.forEach(c => {
-            let px = c.x * cellSize;
-            let py = c.y * cellSize;
+    // 遊戲結束 (勝利或失敗)
+    function gameOver(win) {
+        isGameOver = true;
+        
+        if(win) {
+            statusEl.innerText = "YOU WIN! 🎉";
+            statusEl.style.color = "#00ff00";
+            playTone(800, 'triangle', 0.5);
+        } else {
+            statusEl.innerText = "GAME OVER 💀";
+            statusEl.style.color = "#ff0055";
+            playTone(150, 'sawtooth', 0.8);
             
-            ctx.strokeStyle = '#222';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(px, py, cellSize, cellSize);
+            // 失敗時：展開全地圖
+            revealAllMines();
+        }
+        
+        // 顯示重新開始按鈕 (不會擋住畫面，而是在下方)
+        restartBtn.style.display = 'block';
+    }
 
-            if(c.state === 'hidden' || c.state === 'flagged') {
-                let grad = ctx.createLinearGradient(px, py, px+cellSize, py+cellSize);
-                grad.addColorStop(0, '#2a2a3a');
-                grad.addColorStop(1, '#161622');
-                ctx.fillStyle = grad;
-                ctx.fillRect(px+1, py+1, cellSize-2, cellSize-2);
-
-                if(c.state === 'flagged') {
-                    ctx.fillStyle = '#ff0055';
-                    ctx.font = (cellSize * 0.6) + 'px Arial';
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('🚩', px + cellSize/2, py + cellSize/2);
-                }
-            } else {
-                ctx.fillStyle = c.isMine ? '#300' : '#0a0a10';
-                ctx.fillRect(px, py, cellSize, cellSize);
-
-                if(c.anim > 0) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${c.anim * 0.3})`;
-                    ctx.fillRect(px, py, cellSize, cellSize);
-                    c.anim -= 0.05;
-                }
-
-                if(c.isMine) {
-                    ctx.fillStyle = '#f00';
-                    ctx.font = (cellSize * 0.6) + 'px Arial';
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.shadowBlur = 10; ctx.shadowColor = 'red';
-                    ctx.fillText('💣', px + cellSize/2, py + cellSize/2);
-                    ctx.shadowBlur = 0;
-                } else if(c.neighbor > 0) {
-                    const colors = [null, '#0ff', '#0f0', '#f00', '#00f', '#800', '#088', '#aaa', '#fff'];
-                    ctx.fillStyle = colors[c.neighbor];
-                    ctx.font = 'bold ' + (cellSize * 0.6) + 'px monospace';
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.shadowBlur = 5; ctx.shadowColor = colors[c.neighbor];
-                    ctx.fillText(c.neighbor, px + cellSize/2, py + cellSize/2);
-                    ctx.shadowBlur = 0;
+    // 顯示所有地雷 (不使用遮罩)
+    function revealAllMines() {
+        for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+                const cell = board[r][c];
+                if(cell.isMine && !cell.isOpen) {
+                    cell.element.classList.remove('closed');
+                    cell.element.classList.add('revealed-mine'); // 特殊樣式
+                    cell.element.innerText = '💣';
+                } else if (!cell.isMine && cell.isFlagged) {
+                    // 標錯的旗子
+                    cell.element.innerText = '❌';
                 }
             }
-        }));
-
-        ctx.globalCompositeOperation = 'lighter';
-        for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            ctx.fillStyle = p.color;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI*2); ctx.fill();
-            p.x += p.vx; p.y += p.vy;
-            p.life -= 0.03;
-            if(p.life <= 0) particles.splice(i, 1);
         }
-        ctx.globalCompositeOperation = 'source-over';
-
-        requestAnimationFrame(draw);
     }
 
-    let longPressTimer, startX, startY;
+    // 初始化
+    window.addEventListener('resize', () => {
+        // 簡單防抖動
+        clearTimeout(window.resizeTimer);
+        window.resizeTimer = setTimeout(resizeGame, 200);
+    });
     
-    function getCellFromEvent(e) {
-        let rect = canvas.getBoundingClientRect();
-        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        let x = Math.floor((clientX - rect.left) / (rect.width / cols));
-        let y = Math.floor((clientY - rect.top) / (rect.height / rows));
-        return {x, y};
-    }
-
-    canvas.addEventListener('mousedown', e => {
-        if(e.button === 2) { 
-            let c = getCellFromEvent(e);
-            toggleFlag(c.x, c.y);
-        } else {
-            let c = getCellFromEvent(e);
-            reveal(c.x, c.y);
-        }
-    });
-    canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-    canvas.addEventListener('touchstart', e => {
-        if(state === 'over') return;
-        let c = getCellFromEvent(e);
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        
-        longPressTimer = setTimeout(() => {
-            toggleFlag(c.x, c.y);
-            longPressTimer = null;
-        }, 300); 
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', e => {
-        let dx = e.touches[0].clientX - startX;
-        let dy = e.touches[0].clientY - startY;
-        if(Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-    }, {passive: false});
-
-    canvas.addEventListener('touchend', e => {
-        if(longPressTimer) { 
-            clearTimeout(longPressTimer);
-            let rect = canvas.getBoundingClientRect();
-            let x = Math.floor((startX - rect.left) / (rect.width / cols));
-            let y = Math.floor((startY - rect.top) / (rect.height / rows));
-            reveal(x, y);
-        }
-    });
-
-    modeSel.addEventListener('change', startGame);
-    startGame();
+    restartBtn.onclick = initGame;
+    resizeGame(); // 啟動
 
 </script>
 </body>
