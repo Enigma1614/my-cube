@@ -3,327 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>爆破打磚塊 🧱</title>
+    <title>豪華版：極限爆破 🧱</title>
     <style>
-        body { 
-            background: #0f0c29; color: white; margin: 0; overflow: hidden; 
-            touch-action: none; font-family: "Microsoft JhengHei", sans-serif; text-align: center;
-        }
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column;
-        }
-        #header {
-            padding: 15px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            display: flex; justify-content: space-between; align-items: center;
-        }
+        body { background: #000; color: white; margin: 0; overflow: hidden; touch-action: none; font-family: "Microsoft JhengHei", sans-serif; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #header { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); }
         .score-box { font-size: 24px; font-weight: bold; color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
-        #powerup-status {
-            position: absolute; bottom: 60px; width: 100%; text-align: center;
-            font-size: 18px; color: #00ff00; text-shadow: 0 0 10px #00ff00;
-            opacity: 0; transition: opacity 0.3s; pointer-events: none;
-        }
-        #gameCanvas { display: block; background: radial-gradient(circle at center, #1a1a2e, #000); }
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; pointer-events: auto; z-index: 10;
-        }
-        h1 { margin: 0 0 20px 0; font-size: 40px; color: #ff0055; text-shadow: 0 0 20px red; }
-        p { color: #ccc; margin-bottom: 30px; font-size: 18px; }
-        button {
-            padding: 15px 40px; font-size: 24px; background: #00d2ff; color: #000;
-            border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px #00d2ff; font-weight: bold;
-        }
-        button:active { transform: scale(0.95); }
-        .home-btn {
-            position: absolute; top: 15px; left: 15px; pointer-events: auto;
-            background: rgba(255,255,255,0.2); color: white; padding: 8px 15px;
-            border-radius: 20px; text-decoration: none; font-size: 14px; border: 1px solid rgba(255,255,255,0.3);
-        }
+        #powerup-status { position: absolute; bottom: 100px; width: 100%; text-align: center; font-size: 22px; color: #0f0; text-shadow: 0 0 10px #0f0; opacity: 0; transition: 0.3s; font-weight: bold; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+        h1 { margin: 0; font-size: 45px; color: #ff0055; text-shadow: 0 0 20px red; }
+        button { padding: 15px 45px; font-size: 24px; background: #00d2ff; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; margin-top: 20px; box-shadow: 0 0 20px #00d2ff; }
+        .hint { color: #888; font-size: 14px; margin-top: 10px; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
         <div id="header">
-            <a href="index.html" class="home-btn">🏠 回大廳</a>
-            <div style="flex-grow:1"></div>
-            <div class="score-box">分數: <span id="scoreVal">0</span></div>
+            <div style="color:#aaa">❤️ 無限模式</div>
+            <div class="score-box">得分: <span id="scoreVal">0</span></div>
         </div>
         <div id="powerup-status"></div>
     </div>
     <div id="overlay">
-        <h1 id="msg-title">爆破打磚塊</h1>
-        <p id="msg-desc">點擊按鈕開始遊戲</p>
-        <button onclick="startGame()">🚀 發射球</button>
+        <h1>極限爆破 2.0</h1>
+        <p>摧毀 BOSS 金磚，收集強力道具！</p>
+        <button onclick="startGame()">🚀 啟動引擎</button>
+        <div class="hint">( 點擊按鈕後將開啟音樂與音效 )</div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const powerupStatus = document.getElementById('powerup-status');
-        
         let canvasW, canvasH, animationId, isPlaying = false;
-        let score = 0, lastScoreCheckpoint = 0;
+        let score = 0, hitCount = 0, speedMult = 1;
 
-        // 擋板參數
-        const PADDLE_HEIGHT = 20;
-        let BASE_PADDLE_WIDTH = 100;
-        let currentPaddleWidth;
-        let paddleX;
-        let powerupTimer = null;
-        
-        // 球參數
-        const BALL_RADIUS = 8, MAX_BALLS = 5;
-        let balls = [];
+        // --- 音頻引擎 (Web Audio API) ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                startBGM();
+            }
+        }
 
-        // 磚塊參數
-        const BRICK_ROW_COUNT = 6, BRICK_COL_COUNT = 5;
-        let brickWidth, brickHeight;
-        const brickPadding = 10, brickOffsetTop = 80, brickOffsetLeft = 20;
-        let bricks = [], particles = [];
+        function playSound(type) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            if (type === 'hit') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(); osc.stop(now + 0.1);
+            } else if (type === 'boss') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(220, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(); osc.stop(now + 0.2);
+            } else if (type === 'explosion') {
+                const bufferSize = audioCtx.sampleRate * 0.2;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const noiseGain = audioCtx.createGain();
+                noiseGain.gain.setValueAtTime(0.2, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                noise.connect(noiseGain); noiseGain.connect(audioCtx.destination);
+                noise.start();
+            } else if (type === 'powerup') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(); osc.stop(now + 0.3);
+            }
+        }
+
+        function startBGM() {
+            const loop = () => {
+                if(!isPlaying) return;
+                const now = audioCtx.currentTime;
+                const notes = [110, 130, 146, 164];
+                notes.forEach((f, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(f, now + i * 0.5);
+                    g.gain.setValueAtTime(0.02, now + i * 0.5);
+                    g.gain.linearRampToValueAtTime(0, now + i * 0.5 + 0.4);
+                    osc.connect(g); g.connect(audioCtx.destination);
+                    osc.start(now + i * 0.5); osc.stop(now + i * 0.5 + 0.4);
+                });
+                setTimeout(loop, 2000);
+            };
+            loop();
+        }
+
+        // --- 遊戲邏輯 ---
+        const BRICK_COL_COUNT = 6;
+        let bricks = [], balls = [], particles = [], currentPaddleWidth, paddleX;
+        let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
 
         function resize() {
             canvasW = window.innerWidth; canvasH = window.innerHeight;
             canvas.width = canvasW; canvas.height = canvasH;
-            BASE_PADDLE_WIDTH = Math.min(120, canvasW * 0.25);
-            // 如果沒有道具狀態，重置擋板寬度
-            if (!powerupTimer) currentPaddleWidth = BASE_PADDLE_WIDTH;
-            paddleX = (canvasW - currentPaddleWidth) / 2;
-            const totalPadding = (BRICK_COL_COUNT - 1) * brickPadding + (brickOffsetLeft * 2);
-            brickWidth = (canvasW - totalPadding) / BRICK_COL_COUNT;
-            brickHeight = 25;
+            paddleX = canvasW / 2 - 50;
         }
         window.addEventListener('resize', resize); resize();
 
-        function initBricks() {
-            bricks = [];
+        function spawnRow() {
+            bricks.forEach(b => { b.row++; b.targetY = b.row * 35 + 80; });
             for(let c=0; c<BRICK_COL_COUNT; c++) {
-                bricks[c] = [];
-                for(let r=0; r<BRICK_ROW_COUNT; r++) {
-                    let rand = Math.random();
-                    let type = 'NORMAL';
-                    let color = `hsl(${r * 40}, 70%, 50%)`;
-                    
-                    if (rand < 0.05) { // 5% 機率爆炸磚
-                        type = 'BOMB'; color = '#ff0055';
-                    } else if (rand < 0.15) { // 10% 機率變長道具
-                        type = 'LONG'; color = '#00ff00';
-                    }
+                let r = Math.random(), type = 'NORMAL', color = `hsl(${Math.random()*360}, 60%, 50%)`, hits = 1;
+                if (r < 0.1) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
+                else if (r < 0.15) { type = 'BOMB'; color = '#ff0055'; }
+                else if (r < 0.20) { type = 'LONG'; color = '#00ff00'; }
+                else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; }
+                else if (r < 0.30) { type = 'SHIELD'; color = '#00d2ff'; }
+                else if (r < 0.35) { type = 'SPEED'; color = '#cc00ff'; }
 
-                    bricks[c][r] = { x: 0, y: 0, status: 1, type: type, color: color };
-                }
+                bricks.push({ x: c * (canvasW/BRICK_COL_COUNT) + 5, y: -30, targetY: 80, row: 0, col: c, status: 1, type, color, hits });
             }
         }
 
-        function createBall(x, y) {
-            let angle = Math.random() * Math.PI / 2 + Math.PI / 4;
-            let speed = 6;
-            balls.push({
-                x: x, y: y,
-                dx: Math.cos(angle) * speed * (Math.random() < 0.5 ? 1 : -1),
-                dy: -Math.sin(angle) * speed,
-                active: true
-            });
-        }
-
-        function spawnParticles(x, y, color) {
-            for(let i=0; i<15; i++) {
-                particles.push({
-                    x: x, y: y,
-                    vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
-                    life: 1.0, color: color
-                });
-            }
-        }
-
-        // 道具效果：擋板變長
-        function activatePowerup() {
-            if (powerupTimer) clearTimeout(powerupTimer);
-            currentPaddleWidth = BASE_PADDLE_WIDTH * 1.5; // 變長 50%
-            
-            powerupStatus.innerText = "擋板變長！ (10秒)";
-            powerupStatus.style.opacity = 1;
-
-            powerupTimer = setTimeout(() => {
-                currentPaddleWidth = BASE_PADDLE_WIDTH;
-                powerupStatus.style.opacity = 0;
-                powerupTimer = null;
-            }, 10000);
-        }
-
-        function drawPaddle() {
-            ctx.beginPath();
-            ctx.roundRect(paddleX, canvasH - PADDLE_HEIGHT - 30, currentPaddleWidth, PADDLE_HEIGHT, 10);
-            ctx.fillStyle = powerupTimer ? "#00ff00" : "#00d2ff"; // 有道具時變綠色
-            ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
-            ctx.fill(); ctx.shadowBlur = 0; ctx.closePath();
-        }
-
-        function drawBalls() {
-            balls.forEach(ball => {
-                if(!ball.active) return;
-                ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI*2);
-                ctx.fillStyle = "#ffffff"; ctx.shadowBlur = 10; ctx.shadowColor = "#ffffff";
-                ctx.fill(); ctx.shadowBlur = 0; ctx.closePath();
-            });
-        }
-
-        function drawBricks() {
-            for(let c=0; c<BRICK_COL_COUNT; c++) for(let r=0; r<BRICK_ROW_COUNT; r++) {
-                let b = bricks[c][r];
-                if(b.status === 1) {
-                    let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
-                    let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
-                    b.x = brickX; b.y = brickY;
-                    ctx.beginPath(); ctx.roundRect(brickX, brickY, brickWidth, brickHeight, 5);
-                    
-                    if (b.type === 'BOMB' || b.type === 'LONG') {
-                        ctx.fillStyle = (Date.now() % 500 < 250) ? b.color : '#ffffff';
-                        ctx.shadowBlur = 15; ctx.shadowColor = b.color;
-                    } else {
-                        ctx.fillStyle = b.color; ctx.shadowBlur = 0;
-                    }
-                    ctx.fill(); ctx.closePath();
-
-                    if (b.type === 'BOMB') { ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.fillText('💣', brickX+brickWidth/2-8, brickY+18); }
-                    if (b.type === 'LONG') { ctx.fillStyle='black'; ctx.font='16px Arial'; ctx.fillText('⭐', brickX+brickWidth/2-8, brickY+18); }
-                }
-            }
-        }
-
-        function drawParticles() {
-            for(let i=particles.length-1; i>=0; i--) {
-                let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=0.05;
-                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
-                ctx.globalAlpha = 1.0;
-                if(p.life <= 0) particles.splice(i, 1);
-            }
-        }
-
-        function triggerExplosion(col, row) {
-            spawnParticles(bricks[col][row].x + brickWidth/2, bricks[col][row].y + brickHeight/2, '#ffaa00');
-            for(let c=col-1; c<=col+1; c++) for(let r=row-1; r<=row+1; r++) {
-                if(c>=0 && c<BRICK_COL_COUNT && r>=0 && r<BRICK_ROW_COUNT) {
-                    let b = bricks[c][r];
-                    if(b.status === 1) {
-                        b.status = 0; score += 20;
-                        spawnParticles(b.x + brickWidth/2, b.y + brickHeight/2, b.color);
-                        if(b.type === 'LONG') activatePowerup(); // 炸到道具也要觸發
-                    }
-                }
-            }
-        }
-
-        function collisionDetection() {
-            balls.forEach(ball => {
-                if(!ball.active) return;
-                for(let c=0; c<BRICK_COL_COUNT; c++) for(let r=0; r<BRICK_ROW_COUNT; r++) {
-                    let b = bricks[c][r];
-                    if(b.status === 1) {
-                        if(ball.x > b.x && ball.x < b.x+brickWidth && ball.y > b.y && ball.y < b.y+brickHeight) {
-                            ball.dy = -ball.dy;
-                            if(b.type === 'BOMB') triggerExplosion(c, r);
-                            else {
-                                b.status = 0; score += 10;
-                                spawnParticles(b.x+brickWidth/2, b.y+brickHeight/2, b.color);
-                                if(b.type === 'LONG') activatePowerup();
-                            }
-                            if (score - lastScoreCheckpoint >= 500) {
-                                if(balls.length < MAX_BALLS) createBall(paddleX + currentPaddleWidth/2, canvasH - 60);
-                                lastScoreCheckpoint += 500;
-                            }
-                            checkWin();
-                        }
-                    }
-                }
-            });
-        }
-
-        function checkWin() {
-            let isWin = true;
-            for(let c=0; c<BRICK_COL_COUNT; c++) for(let r=0; r<BRICK_ROW_COUNT; r++) if(bricks[c][r].status === 1) isWin = false;
-            if(isWin) gameOver("恭喜過關！", "所有磚塊已清除");
+        function activatePowerup(type) {
+            playSound('powerup');
+            let msg = "";
+            if (type === 'LONG') { powerups.long = Date.now() + 10000; msg = "📏 擋板加長！"; }
+            else if (type === 'FIREBALL') { powerups.fireball = Date.now() + 8000; msg = "🔥 超級火球！"; }
+            else if (type === 'SHIELD') { powerups.shield = Date.now() + 15000; msg = "🛡️ 底部護盾！"; }
+            else if (type === 'SPEED') { powerups.fast = Date.now() + 5000; msg = "🚀 極速衝刺！"; }
+            const el = document.getElementById('powerup-status');
+            el.innerText = msg; el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 2000);
         }
 
         function update() {
             if(!isPlaying) return;
-            let activeBalls = 0;
-            const paddleTopY = canvasH - PADDLE_HEIGHT - 30;
+            
+            speedMult = (Date.now() < powerups.fast) ? 1.8 : 1.0;
+            let targetW = (Date.now() < powerups.long) ? 180 : 100;
+            currentPaddleWidth = (currentPaddleWidth || 100) + (targetW - (currentPaddleWidth || 100)) * 0.1;
+
+            bricks.forEach((b, idx) => {
+                b.y += (b.targetY - b.y) * 0.1;
+                if (b.status === 1 && b.y > canvasH - 80) gameOver("城市淪陷", "磚塊壓到了底線！");
+            });
 
             balls.forEach(ball => {
                 if(!ball.active) return;
-                activeBalls++;
-                ball.x += ball.dx; ball.y += ball.dy;
+                ball.x += ball.dx * speedMult; ball.y += ball.dy * speedMult;
 
-                if(ball.x + ball.dx > canvasW - BALL_RADIUS || ball.x + ball.dx < BALL_RADIUS) ball.dx = -ball.dx;
-                if(ball.y + ball.dy < BALL_RADIUS) ball.dy = -ball.dy;
-                
-                // --- 修正擋板碰撞邏輯 ---
-                // 檢查球是否到達擋板高度
-                if(ball.y + BALL_RADIUS >= paddleTopY && ball.dy > 0) {
-                    // 檢查球的 X 座標是否在擋板範圍內
-                    if(ball.x >= paddleX && ball.x <= paddleX + currentPaddleWidth) {
-                        ball.y = paddleTopY - BALL_RADIUS; // 強制修正位置到擋板上方
-                        ball.dy = -ball.dy; // 反彈
+                if(ball.x < 8 || ball.x > canvasW - 8) { ball.dx *= -1; playSound('hit'); }
+                if(ball.y < 8) { ball.dy *= -1; playSound('hit'); }
 
-                        // 根據撞擊點改變角度
-                        let hitPoint = ball.x - (paddleX + currentPaddleWidth/2);
-                        hitPoint = hitPoint / (currentPaddleWidth/2);
-                        let speed = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
-                        let angle = hitPoint * (Math.PI/3);
-                        ball.dx = speed * Math.sin(angle);
-                        ball.dy = -speed * Math.cos(angle);
-                    } else if (ball.y - BALL_RADIUS > canvasH) {
-                        // 真的掉出螢幕外才算死掉
-                        ball.active = false;
+                if(ball.y > canvasH - 60 && ball.y < canvasH - 40 && ball.dy > 0) {
+                    if(ball.x > paddleX && ball.x < paddleX + currentPaddleWidth) {
+                        ball.dy *= -1; playSound('hit');
+                        ball.dx = (ball.x - (paddleX + currentPaddleWidth/2)) / (currentPaddleWidth/2) * 6;
                     }
                 }
+                if(Date.now() < powerups.shield && ball.y > canvasH - 15) { ball.dy *= -1; playSound('hit'); }
+                if(ball.y > canvasH + 20) ball.active = false;
+
+                bricks.forEach((b, i) => {
+                    if(b.status === 1 && ball.x > b.x && ball.x < b.x + (canvasW/BRICK_COL_COUNT)-10 && ball.y > b.y && ball.y < b.y + 25) {
+                        if (Date.now() < powerups.fireball) {} else { ball.dy *= -1; }
+                        b.hits--;
+                        if(b.hits <= 0) {
+                            b.status = 0; score += (b.type === 'BOSS' ? 50 : 10);
+                            if(b.type === 'BOMB') { playSound('explosion'); triggerBomb(b.col, b.row); }
+                            else { playSound('hit'); }
+                            if(b.type !== 'NORMAL' && b.type !== 'BOMB' && b.type !== 'BOSS') activatePowerup(b.type);
+                        } else {
+                            playSound('boss');
+                        }
+                        hitCount++;
+                        if(hitCount % 10 === 0) spawnRow();
+                    }
+                });
             });
 
-            if(activeBalls === 0) gameOver("遊戲結束", "得分: " + score);
-            collisionDetection();
+            if(balls.filter(b=>b.active).length === 0) gameOver("遊戲結束", "球全部掉落了");
+            particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.life -= 0.02; if(p.life<=0) particles.splice(i,1); });
+        }
+
+        function triggerBomb(col, row) {
+            bricks.forEach((b, i) => {
+                let dist = Math.sqrt(Math.pow(b.col-col, 2) + Math.pow(b.row-row, 2));
+                if(dist < 1.9 && b.status === 1) { b.status = 0; score += 10; }
+            });
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvasW, canvasH);
-            drawBricks(); drawPaddle(); drawBalls(); drawParticles();
-            document.getElementById('scoreVal').innerText = score;
-        }
+            ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvasW,canvasH);
+            if(Date.now() < powerups.shield) { ctx.fillStyle = '#00d2ff55'; ctx.fillRect(0, canvasH-10, canvasW, 10); }
 
-        function gameLoop() { if(isPlaying) { update(); draw(); animationId = requestAnimationFrame(gameLoop); } }
+            bricks.forEach(b => {
+                if(b.status !== 1) return;
+                ctx.fillStyle = b.color;
+                ctx.shadowBlur = (b.type === 'NORMAL') ? 0 : 15; ctx.shadowColor = b.color;
+                ctx.beginPath(); ctx.roundRect(b.x, b.y, (canvasW/BRICK_COL_COUNT)-10, 25, 5); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "white"; ctx.font = "bold 14px Arial";
+                if(b.type === 'BOSS') ctx.fillText(b.hits, b.x + 20, b.y + 18);
+                else if(b.type === 'BOMB') ctx.fillText('💣', b.x + 15, b.y + 18);
+                else if(b.type === 'SPEED') ctx.fillText('🚀', b.x + 15, b.y + 18);
+            });
+
+            ctx.fillStyle = (Date.now() < powerups.long) ? '#0f0' : '#00d2ff';
+            ctx.beginPath(); ctx.roundRect(paddleX, canvasH - 50, currentPaddleWidth, 15, 10); ctx.fill();
+
+            balls.forEach(ball => {
+                if(!ball.active) return;
+                ctx.fillStyle = (Date.now() < powerups.fireball) ? '#f40' : 'white';
+                ctx.beginPath(); ctx.arc(ball.x, ball.y, 8, 0, Math.PI*2); ctx.fill();
+            });
+
+            document.getElementById('scoreVal').innerText = score;
+            animationId = requestAnimationFrame(() => { update(); draw(); });
+        }
 
         function startGame() {
+            initAudio();
             document.getElementById('overlay').style.display = 'none';
-            score = 0; lastScoreCheckpoint = 0; balls = [];
-            initBricks();
-            if (powerupTimer) { clearTimeout(powerupTimer); powerupTimer = null; }
-            currentPaddleWidth = BASE_PADDLE_WIDTH;
-            powerupStatus.style.opacity = 0;
-            resize();
-            createBall(canvasW/2, canvasH - 100);
-            isPlaying = true; gameLoop();
+            score = 0; hitCount = 0; bricks = []; balls = []; isPlaying = true;
+            spawnRow(); spawnRow(); spawnRow();
+            balls.push({ x: canvasW/2, y: canvasH-100, dx: 4, dy: -4, active: true });
+            draw();
         }
 
-        function gameOver(title, desc) {
+        function gameOver(t, d) {
             isPlaying = false; cancelAnimationFrame(animationId);
-            document.getElementById('msg-title').innerText = title;
-            document.getElementById('msg-desc').innerText = desc;
             document.getElementById('overlay').style.display = 'flex';
+            document.getElementById('overlay').querySelector('h1').innerText = t;
+            document.getElementById('overlay').querySelector('p').innerText = d + " 得分: " + score;
         }
 
-        function movePaddle(e) {
-            let relativeX = (e.type === 'touchmove') ? e.touches[0].clientX : e.clientX;
-            if(relativeX > 0 && relativeX < canvasW) {
-                paddleX = relativeX - currentPaddleWidth / 2;
-                if (paddleX < 0) paddleX = 0;
-                if (paddleX + currentPaddleWidth > canvasW) paddleX = canvasW - currentPaddleWidth;
-            }
-        }
-        document.addEventListener('mousemove', movePaddle, false);
-        document.addEventListener('touchmove', (e) => { e.preventDefault(); movePaddle(e); }, { passive: false });
+        document.addEventListener('mousemove', e => { paddleX = e.clientX - currentPaddleWidth/2; });
+        document.addEventListener('touchmove', e => { e.preventDefault(); paddleX = e.touches[0].clientX - currentPaddleWidth/2; }, {passive:false});
     </script>
 </body>
 </html>
