@@ -14,16 +14,14 @@
             touch-action: manipulation;
         }
 
-        /* === 1. 上方資訊區 (修復回大廳按鈕) === */
+        /* === 1. 上方資訊區 === */
         header {
             width: 100%; padding: 10px 15px; box-sizing: border-box;
             background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
             display: flex; justify-content: space-between; align-items: center;
-            flex-shrink: 0; z-index: 10;
+            flex-shrink: 0; z-index: 10; height: 60px;
         }
-
         .header-left { display: flex; align-items: center; gap: 12px; }
-
         .home-btn {
             text-decoration: none; font-size: 18px; color: #fff;
             background: rgba(255,255,255,0.1); width: 36px; height: 36px;
@@ -31,11 +29,10 @@
             border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
         }
         .home-btn:active { background: var(--accent); color: #000; }
-
         .game-title { font-weight: 800; letter-spacing: 1px; color: #fff; }
         .mine-count { font-family: monospace; font-size: 20px; color: #f1c40f; font-weight: bold; }
 
-        /* === 2. 遊戲主體 (置中、可捲動) === */
+        /* === 2. 遊戲主體 === */
         #game-wrapper {
             flex: 1; width: 100%;
             display: flex; flex-direction: column; 
@@ -43,26 +40,29 @@
             overflow: hidden; position: relative;
         }
 
-        /* 狀態文字 (失敗/勝利顯示於此) */
         #status-msg {
             font-size: 24px; font-weight: 900; color: #fff; 
             text-shadow: 0 0 10px var(--accent);
-            margin-bottom: 10px; height: 30px; /* 佔位防止跳動 */
+            margin-bottom: 5px; height: 30px; line-height: 30px;
         }
 
         #grid-container {
-            overflow: auto; /* 允許地圖太大時捲動 */
-            max-width: 100%; max-height: 70vh;
+            overflow: auto; 
             padding: 10px;
+            /* 讓容器自適應內容，但最大不超過螢幕 */
+            max-width: 98%; max-height: 98%;
             border: 2px solid rgba(255,255,255,0.1);
             border-radius: 8px;
             background: rgba(0,0,0,0.2);
+            /* 卷軸美化 */
+            scrollbar-width: thin; scrollbar-color: var(--accent) #333;
         }
 
         #grid {
             display: grid; gap: 2px;
             background: #333;
             pointer-events: auto;
+            margin: auto; /* 讓格子在容器內置中 */
         }
 
         .cell {
@@ -76,41 +76,51 @@
         .cell.closed:active { background: var(--cell-hover); }
         .cell.open { background: #0b0b15; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
         
-        /* 爆炸的地雷 (當下踩到的) */
         .cell.boom { background: #ff0055 !important; animation: shake 0.5s; border: 1px solid #fff; z-index: 2; }
-        
-        /* 遊戲結束顯示的未發現地雷 */
-        .cell.revealed-mine { background: #2a0a1a; opacity: 0.8; }
-        
-        /* 標記正確的旗子 (綠色底) */
+        .cell.revealed-mine { background: #2a0a1a; opacity: 0.9; border: 1px solid #ff4444; }
         .cell.correct-flag { background: #0a2a0a; border: 1px solid #0f0; }
-        
-        /* 標記錯誤的旗子 (紅色叉叉) */
         .cell.wrong-flag { background: #2a0a0a; color: red; }
 
-        /* 數字顏色 */
         .c-1 { color: #4cc9f0; } .c-2 { color: #4eff4e; } .c-3 { color: #ff4d6d; }
         .c-4 { color: #9d4edd; } .c-5 { color: #ff9e00; } .c-6 { color: #00ffff; }
         .c-7 { color: #fff; } .c-8 { color: #777; }
 
         /* === 3. 下方控制區 === */
         footer {
-            width: 100%; padding: 15px;
+            width: 100%; padding: 10px;
             background: rgba(0,0,0,0.2);
-            display: flex; flex-direction: column; align-items: center; gap: 10px;
-            flex-shrink: 0; min-height: 80px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            flex-shrink: 0; min-height: 100px;
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* 重新開始按鈕 */
-        #restartBtn {
-            padding: 12px 50px; font-size: 20px; font-weight: bold;
-            background: var(--accent); border: none; border-radius: 50px;
-            color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
-            display: none; /* 初始隱藏 */
+        /* 模式選擇區 (開始時顯示) */
+        #mode-selector {
+            display: flex; gap: 10px;
         }
-        #restartBtn:active { transform: scale(0.95); }
+        
+        /* 重新開始按鈕 (結束時顯示) */
+        #restart-area {
+            display: none; text-align: center;
+        }
 
-        .hint { color: #666; font-size: 12px; margin-top: 5px; text-align: center; }
+        button {
+            padding: 10px 20px; font-size: 16px; font-weight: bold;
+            border: none; border-radius: 8px; cursor: pointer; color: #000;
+            transition: transform 0.1s, filter 0.2s;
+            min-width: 80px;
+        }
+        button:active { transform: scale(0.95); }
+
+        .btn-easy { background: #4eff4e; box-shadow: 0 0 10px #4eff4e; }
+        .btn-normal { background: #4cc9f0; box-shadow: 0 0 10px #4cc9f0; }
+        .btn-hard { background: #ff4d6d; box-shadow: 0 0 10px #ff4d6d; }
+        .btn-restart { 
+            background: #f1c40f; box-shadow: 0 0 15px #f1c40f; 
+            padding: 12px 40px; font-size: 20px; border-radius: 50px;
+        }
+
+        .hint { color: #888; font-size: 12px; margin-top: 8px; text-align: center; }
 
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
@@ -129,18 +139,27 @@
             <a href="index.html" class="home-btn">🏠</a>
             <div class="game-title">MINESWEEPER</div>
         </div>
-        <div class="mine-count">💣 <span id="mineCount">0</span></div>
+        <div class="mine-count">💣 <span id="mineCount">--</span></div>
     </header>
 
     <div id="game-wrapper">
-        <div id="status-msg"></div>
+        <div id="status-msg">請選擇難度</div>
         <div id="grid-container">
             <div id="grid"></div>
         </div>
     </div>
 
     <footer>
-        <button id="restartBtn">重新開始</button>
+        <div id="mode-selector">
+            <button class="btn-easy" onclick="startGame('easy')">簡單</button>
+            <button class="btn-normal" onclick="startGame('normal')">普通</button>
+            <button class="btn-hard" onclick="startGame('hard')">困難</button>
+        </div>
+
+        <div id="restart-area">
+            <button class="btn-restart" id="restartBtn">重新開始</button>
+        </div>
+
         <div class="hint">🖱️ 左鍵:挖開 / 右鍵:插旗<br>📱 短按:挖開 / 長按:插旗</div>
     </footer>
 
@@ -148,13 +167,17 @@
     const grid = document.getElementById('grid');
     const statusMsg = document.getElementById('status-msg');
     const mineCountEl = document.getElementById('mineCount');
+    const modeSelector = document.getElementById('mode-selector');
+    const restartArea = document.getElementById('restart-area');
     const restartBtn = document.getElementById('restartBtn');
+    const gridContainer = document.getElementById('grid-container');
 
-    let ROWS = 12, COLS = 10, MINES = 15;
+    let ROWS = 10, COLS = 10, MINES = 10;
     let board = []; 
     let isGameOver = false;
-    let flagsLeft = MINES;
+    let flagsLeft = 0;
     let audioCtx;
+    let cellSize = 35; // 格子大小
 
     function playTone(freq, type='sine', d=0.1) {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -168,24 +191,58 @@
         o.start(); o.stop(audioCtx.currentTime + d);
     }
 
-    function resizeGame() {
-        const w = window.innerWidth;
-        if(w < 600) { COLS = 10; ROWS = 14; MINES = 15; } 
-        else { COLS = 18; ROWS = 12; MINES = 30; }
+    // 根據螢幕計算合適的網格
+    function calculateGrid(difficulty) {
+        const wrapper = document.getElementById('game-wrapper');
+        // 取得可用空間 (扣掉邊距)
+        const w = wrapper.clientWidth - 20;
+        const h = wrapper.clientHeight - 60; // 扣掉文字高度
+        
+        // 計算螢幕最多能塞幾格
+        const maxCols = Math.floor(w / (cellSize + 2));
+        const maxRows = Math.floor(h / (cellSize + 2));
+
+        if (difficulty === 'easy') {
+            // 簡單：較小範圍，低密度 (12%)
+            COLS = Math.min(10, maxCols);
+            ROWS = Math.min(12, maxRows);
+            MINES = Math.floor(COLS * ROWS * 0.12);
+        } else if (difficulty === 'normal') {
+            // 普通：填滿寬度，高度適中，中密度 (16%)
+            COLS = Math.max(10, Math.floor(maxCols * 0.9)); 
+            ROWS = Math.max(10, Math.floor(maxRows * 0.8));
+            MINES = Math.floor(COLS * ROWS * 0.16);
+        } else {
+            // 困難：填滿全螢幕，高密度 (22%)
+            COLS = maxCols;
+            ROWS = maxRows;
+            MINES = Math.floor(COLS * ROWS * 0.22);
+        }
+        
+        // 修正：最少要有雷
+        MINES = Math.max(3, MINES);
+    }
+
+    function startGame(difficulty) {
+        calculateGrid(difficulty);
         initGame();
     }
 
     function initGame() {
         isGameOver = false;
         flagsLeft = MINES;
-        statusMsg.innerText = ""; // 清空狀態文字
+        statusMsg.innerText = "";
         mineCountEl.innerText = flagsLeft;
-        restartBtn.style.display = 'none';
         
-        grid.style.gridTemplateColumns = `repeat(${COLS}, 35px)`;
+        // 切換按鈕顯示
+        modeSelector.style.display = 'none';
+        restartArea.style.display = 'none';
+        
+        grid.style.gridTemplateColumns = `repeat(${COLS}, ${cellSize}px)`;
         grid.innerHTML = '';
         board = [];
 
+        // 建立格子
         for (let r = 0; r < ROWS; r++) {
             let row = [];
             for (let c = 0; c < COLS; c++) {
@@ -202,6 +259,7 @@
             board.push(row);
         }
 
+        // 佈雷
         let minesPlaced = 0;
         while(minesPlaced < MINES) {
             const rr = Math.floor(Math.random() * ROWS);
@@ -212,6 +270,7 @@
             }
         }
 
+        // 計算數字
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
                 if(!board[r][c].isMine) {
@@ -281,7 +340,7 @@
         cellData.element.classList.remove('closed');
         cellData.element.classList.add('open');
 
-        // 踩到雷：引爆
+        // 踩到雷
         if(cellData.isMine) {
             cellData.element.classList.add('boom');
             cellData.element.innerText = '💥';
@@ -321,20 +380,19 @@
             statusMsg.innerText = "YOU WIN! 🎉";
             statusMsg.style.color = "#00ff00";
             playTone(800, 'triangle', 0.5);
-            // 勝利時自動標記剩餘地雷
             flagAllMines();
         } else {
             statusMsg.innerText = "GAME OVER";
             statusMsg.style.color = "#ff0055";
             playTone(150, 'sawtooth', 0.8);
-            
-            // 失敗時：展示所有地雷狀態
-            revealMapState();
+            revealAllMap(); // 顯示全圖 (含數字與地雷)
         }
-        restartBtn.style.display = 'block';
+        
+        // 顯示重新選擇難度
+        modeSelector.style.display = 'none';
+        restartArea.style.display = 'block';
     }
 
-    // 勝利時把剩下的雷都插上旗子
     function flagAllMines() {
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
@@ -346,52 +404,55 @@
         }
     }
 
-    // 失敗時展示全圖狀態
-    function revealMapState() {
+    // === 關鍵修正：失敗時顯示全圖 (含數字) ===
+    function revealAllMap() {
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
                 const cell = board[r][c];
                 
-                // 1. 本來是雷
+                // 1. 如果已經打開，跳過
+                if (cell.isOpen) continue;
+
+                // 2. 打開格子
+                cell.element.classList.remove('closed');
+                cell.element.classList.add('open');
+
+                // 3. 判斷內容
                 if (cell.isMine) {
-                    if (cell.isOpen) {
-                        // 這是引爆點，已經處理過了 ('boom')
-                        continue; 
-                    }
-                    
-                    cell.element.classList.remove('closed');
-                    
+                    // 是雷
                     if (cell.isFlagged) {
-                        // 標對了：顯示綠色底的旗子
                         cell.element.innerText = '🚩';
                         cell.element.classList.add('correct-flag');
                     } else {
-                        // 沒發現的雷：顯示炸彈
                         cell.element.innerText = '💣';
                         cell.element.classList.add('revealed-mine');
                     }
-                } 
-                // 2. 本來不是雷
-                else {
+                } else {
+                    // 不是雷
                     if (cell.isFlagged) {
-                        // 標錯了：顯示紅色叉叉
-                        cell.element.classList.remove('closed');
+                        // 插錯旗
                         cell.element.innerText = '❌';
                         cell.element.classList.add('wrong-flag');
+                    } else if (cell.count > 0) {
+                        // 顯示數字
+                        cell.element.innerText = cell.count;
+                        cell.element.classList.add(`c-${cell.count}`);
                     }
+                    // 如果是0，就保持空白 (open 樣式)
                 }
             }
         }
     }
 
-    window.addEventListener('resize', () => {
-        clearTimeout(window.resizeTimer);
-        window.resizeTimer = setTimeout(resizeGame, 200);
-    });
-    
-    restartBtn.onclick = initGame;
-    resizeGame();
+    // 重新開始按鈕 -> 回到模式選擇
+    restartBtn.onclick = () => {
+        statusMsg.innerText = "請選擇難度";
+        grid.innerHTML = ''; // 清空格子
+        restartArea.style.display = 'none';
+        modeSelector.style.display = 'flex';
+    };
 
+    // 預設顯示模式選擇
 </script>
 </body>
 </html>
