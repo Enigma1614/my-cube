@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>極限貪食蛇：完美修復版</title>
+  <title>極限貪食蛇：最終修復版</title>
   <style>
     :root { --bg: #0b1220; --accent: #4cc9f0; --grid: rgba(60, 80, 120, 0.2); }
     html, body {
@@ -18,10 +18,10 @@
     
     /* 頂部資訊列 */
     header {
-      padding: 10px 20px; 
+      padding: 0 20px; 
       display: flex; justify-content: space-between; align-items: center;
       background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1);
-      flex-shrink: 0; height: 60px; box-sizing: border-box;
+      flex-shrink: 0; height: 60px; box-sizing: border-box; z-index: 20;
     }
     .header-left { display: flex; align-items: center; gap: 12px; }
     .home-btn {
@@ -32,7 +32,7 @@
     }
     .score-box { font-size: 20px; font-weight: 800; color: var(--accent); font-family: monospace; }
 
-    /* 遊戲主顯示區 (自動填滿剩餘空間) */
+    /* 遊戲主顯示區 */
     .game-wrapper {
         flex: 1; 
         display: flex; align-items: center; justify-content: center;
@@ -46,6 +46,7 @@
         box-shadow: 0 0 30px rgba(76, 201, 240, 0.1);
         border: 2px solid rgba(255,255,255,0.1);
         background: #061022;
+        z-index: 1;
     }
     
     canvas {
@@ -54,29 +55,35 @@
       background-size: var(--cell) var(--cell);
     }
 
+    /* 遮罩層：確保層級最高，且按鈕可以點擊 */
     #overlay {
       position: absolute; inset: 0; 
-      background: rgba(0, 0, 0, 0.7); 
+      background: rgba(0, 0, 0, 0.85); 
       backdrop-filter: blur(5px); 
       display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 10;
+      z-index: 100; /* 超高層級 */
+      pointer-events: auto; /* 確保能接收點擊 */
     }
     
     h2 { margin: 0 0 10px 0; font-size: 32px; color: #fff; text-shadow: 0 0 10px var(--accent); }
+    
     button#startBtn {
-      padding: 12px 40px; font-size: 18px; font-weight: bold;
+      padding: 15px 50px; font-size: 20px; font-weight: bold;
       background: var(--accent); border: none; border-radius: 50px;
       color: #000; cursor: pointer; box-shadow: 0 0 20px var(--accent);
+      pointer-events: auto; /* 強制按鈕可點擊 */
+      margin-top: 20px;
     }
-    button#startBtn:active { transform: scale(0.95); }
+    button#startBtn:active { transform: scale(0.95); background: #fff; }
 
-    /* === 搖桿控制區 (固定在底部) === */
+    /* === 搖桿控制區 === */
     .controls-area {
         height: 200px; width: 100%;
         display: flex; justify-content: center; align-items: center;
         background: rgba(0,0,0,0.2);
         flex-shrink: 0;
         position: relative;
+        z-index: 50;
     }
 
     .joystick-base {
@@ -86,13 +93,7 @@
         border-radius: 50%;
         position: relative;
         display: flex; justify-content: center; align-items: center;
-        touch-action: none; /* 關鍵：禁止瀏覽器處理此區塊的觸控 */
-    }
-
-    /* 搖桿中心裝飾 */
-    .joystick-base::before {
-        content: ''; position: absolute; width: 10px; height: 10px;
-        background: rgba(255,255,255,0.1); border-radius: 50%;
+        /* 重要：防止搖桿區干擾按鈕點擊，但這裡在底部所以還好 */
     }
 
     .joystick-knob {
@@ -101,9 +102,8 @@
         border-radius: 50%;
         position: absolute;
         box-shadow: 0 0 15px var(--accent);
-        transform: translate(0, 0);
-        pointer-events: none; /* 讓事件穿透 */
-        transition: transform 0.08s ease-out; /* 平滑過渡 */
+        pointer-events: none;
+        transition: transform 0.08s ease-out;
     }
 
     .joy-arrow { 
@@ -113,7 +113,6 @@
     .ja-up { top: 10px; } .ja-down { bottom: 10px; } 
     .ja-left { left: 10px; } .ja-right { right: 10px; }
 
-    /* 電腦版隱藏搖桿 */
     @media (min-width: 800px) { .controls-area { display: none; } }
   </style>
 </head>
@@ -121,8 +120,8 @@
 
   <header>
     <div class="header-left">
-        <a href="#" class="home-btn">🏠</a>
-        <div style="font-weight:900; letter-spacing:1px; margin-left:10px;">SNAKE <span style="color:var(--accent)">FIX</span></div>
+        <a href="index.html" class="home-btn">🏠</a>
+        <div style="font-weight:900; letter-spacing:1px; margin-left:10px;">SNAKE <span style="color:var(--accent)">FINAL</span></div>
     </div>
     <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
   </header>
@@ -132,8 +131,8 @@
         <canvas id="snakeCanvas"></canvas>
         <div id="overlay">
           <h2 id="m-title">READY</h2>
-          <p style="color:#ccc; margin-bottom:20px">使用下方搖桿控制</p>
-          <button id="startBtn">START</button>
+          <p style="color:#ccc; margin-bottom:10px">滑動搖桿控制</p>
+          <button id="startBtn">START GAME</button>
         </div>
       </div>
   </div>
@@ -155,6 +154,8 @@
   const container = document.getElementById('gContainer');
   const scoreEl = document.getElementById('scoreVal');
   const overlay = document.getElementById('overlay');
+  const titleEl = document.getElementById('m-title');
+  const startBtn = document.getElementById('startBtn');
   
   // 遊戲參數
   const GRID_SIZE = 40; 
@@ -166,7 +167,7 @@
   let gameLoopTimeout = null;
   let audioCtx;
 
-  // 音效引擎
+  // 音效
   function playNote(f, type='sine', d=0.1) {
     if(!audioCtx || audioCtx.state !== 'running') return;
     try {
@@ -180,18 +181,14 @@
     } catch(e){}
   }
 
-  // 初始化畫布 (精準計算尺寸)
+  // 尺寸計算
   function resize() {
     dpr = window.devicePixelRatio || 1;
-    // 計算 wrapper 的可用空間
     const wrapper = document.querySelector('.game-wrapper');
     const maxWidth = wrapper.clientWidth * 0.95;
     const maxHeight = wrapper.clientHeight * 0.95;
-    
-    // 保持正方形
     const size = Math.min(maxWidth, maxHeight);
-    // 確保是偶數，避免渲染模糊
-    const finalSize = Math.floor(size / 2) * 2;
+    const finalSize = Math.floor(size / 2) * 2; // 偶數修正
 
     container.style.width = finalSize + "px";
     container.style.height = finalSize + "px";
@@ -203,71 +200,78 @@
     
     document.documentElement.style.setProperty('--cell', cell + 'px');
     
-    if(!isRunning && snake.length > 0) draw(); 
+    // 尺寸改變時，重畫一次確保畫面正常，但如果正在跑就不重置
+    if(!isRunning) draw(); 
   }
   window.addEventListener('resize', resize);
 
-  // 遊戲邏輯
+  // 食物生成
   function spawnFood() {
     let valid = false;
-    while(!valid) {
+    let safetyCounter = 0;
+    while(!valid && safetyCounter < 500) {
         food = { 
             x: Math.floor(Math.random()*cols), 
             y: Math.floor(Math.random()*rows), 
             type: Math.random()<0.1?'star':(Math.random()<0.2?'pill':'normal') 
         };
+        // 確保不生成在蛇身上
         valid = !snake.some(p => p.x === food.x && p.y === food.y);
+        safetyCounter++;
     }
   }
 
-  function reset() {
+  // 核心重置邏輯 (保證初始狀態)
+  function initGame() {
     score = 0; scoreEl.textContent = score;
     const mid = Math.floor(cols/2);
     snake = [];
-    // 初始長度
+    // 初始 5 格
     for(let i=0; i<5; i++) snake.push({x:mid, y:mid+i});
     dir = {x:0, y:-1}; 
     inputQueue = [];
-    spawnFood();
-    isRunning = false;
-    clearTimeout(gameLoopTimeout);
-    overlay.style.display = 'flex';
-    document.getElementById('m-title').innerText = "READY";
     
-    resize(); // 確保重置時尺寸正確
-    draw();
+    spawnFood(); // 生成食物 (解決一開始沒紅點的問題)
+    
+    if(gameLoopTimeout) clearTimeout(gameLoopTimeout);
+    isRunning = false;
+    
+    draw(); // 立即繪製初始畫面
   }
 
+  // 遊戲結束
+  function gameOver() {
+    playNote(100, 'sawtooth', 0.5); 
+    isRunning = false;
+    titleEl.innerText = "GAME OVER";
+    startBtn.innerText = "TRY AGAIN";
+    overlay.style.display = 'flex'; // 顯示遮罩
+  }
+
+  // 遊戲迴圈
   function update() {
     if(!isRunning) return;
 
-    // 處理輸入隊列
     if(inputQueue.length > 0) {
         const next = inputQueue.shift();
-        // 雙重檢查防止掉頭自殺
-        if(next.x !== -dir.x && next.y !== -dir.y) {
-            dir = next;
-        }
+        if(next.x !== -dir.x && next.y !== -dir.y) dir = next;
     }
 
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-    // 撞牆或撞身體
+    // 碰撞檢查
     if(head.x<0 || head.x>=cols || head.y<0 || head.y>=rows || snake.some(p=>p.x===head.x && p.y===head.y)) {
-      playNote(100, 'sawtooth', 0.5); 
-      isRunning = false;
-      document.getElementById('m-title').innerText = "GAME OVER";
-      overlay.style.display = 'flex';
+      gameOver();
       return;
     }
 
     snake.unshift(head);
 
+    // 吃到食物
     if(head.x===food.x && head.y===food.y) {
       if(food.type==='star') { score+=30; playNote(800, 'square'); }
       else if(food.type==='pill') { 
           score+=5; playNote(400, 'sine'); 
-          // 縮短身體邏輯：最少保留 3 節
           if(snake.length > 4) { snake.pop(); snake.pop(); }
           else snake.pop();
       }
@@ -281,7 +285,7 @@
 
     draw();
     
-    // 難度曲線
+    // 速度
     const speed = Math.max(50, 90 - Math.sqrt(score) * 3);
     gameLoopTimeout = setTimeout(update, speed);
   }
@@ -289,19 +293,26 @@
   function draw() {
     ctx.clearRect(0,0,canvas.width/dpr, canvas.height/dpr);
     
-    // 食物
-    const fx=food.x*cell, fy=food.y*cell;
-    const p=cell*0.15, s=cell-p*2;
-    ctx.fillStyle = food.type==='star'?'#ffcf33':(food.type==='pill'?'#4cc9f0':'#ff4d6d');
-    ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
-    
-    ctx.beginPath(); 
-    if(food.type === 'star') ctx.arc(fx+cell/2, fy+cell/2, s/2, 0, Math.PI*2);
-    else ctx.roundRect(fx+p, fy+p, s, s, 4); 
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    // 畫食物
+    if(food.x !== undefined) {
+        const fx=food.x*cell, fy=food.y*cell;
+        const p=cell*0.15, s=cell-p*2;
+        
+        // 顏色區分
+        if(food.type==='star') ctx.fillStyle = '#ffcf33'; // 黃星
+        else if(food.type==='pill') ctx.fillStyle = '#4cc9f0'; // 藍丸
+        else ctx.fillStyle = '#ff3333'; // 紅點 (一般)
+        
+        ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+        
+        ctx.beginPath(); 
+        if(food.type === 'star') ctx.arc(fx+cell/2, fy+cell/2, s/2, 0, Math.PI*2);
+        else ctx.roundRect(fx+p, fy+p, s, s, 4); 
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
 
-    // 蛇
+    // 畫蛇
     snake.forEach((p, i) => {
       ctx.fillStyle = i===0 ? '#fff' : (i%2===0 ? '#7CFF6B' : '#5CE64A');
       const x=p.x*cell, y=p.y*cell;
@@ -311,7 +322,6 @@
       ctx.roundRect(x+gap, y+gap, cell-gap*2, cell-gap*2, i===0?4:2); 
       ctx.fill();
       
-      // 眼睛
       if(i===0) { 
         ctx.fillStyle='#000';
         const eyeOff = cell*0.25;
@@ -325,68 +335,36 @@
     });
   }
 
-  // === 核心輸入處理 ===
+  // === 輸入與搖桿 ===
   const handleInput = (x, y) => { 
     if(!isRunning) return;
-    
-    // 獲取隊列中最後一個指令，如果沒有則使用當前方向
     const lastPendingDir = inputQueue.length > 0 ? inputQueue[inputQueue.length-1] : dir;
-    
-    // 檢查1：不能走反方向
     if(x === -lastPendingDir.x && y === -lastPendingDir.y) return;
-    
-    // 檢查2：不能重複輸入相同方向
     if(x === lastPendingDir.x && y === lastPendingDir.y) return;
-
-    // 緩存限制：最多存 2 個指令，避免按太快蛇像發瘋一樣轉
-    if(inputQueue.length < 2) {
-        inputQueue.push({x, y});
-    }
+    if(inputQueue.length < 2) inputQueue.push({x, y});
   };
 
-  // 鍵盤支援
-  window.addEventListener('keydown', e => {
-      if(['ArrowUp','w','W'].includes(e.key)) handleInput(0,-1);
-      if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
-      if(['ArrowLeft','a','A'].includes(e.key)) handleInput(-1,0);
-      if(['ArrowRight','d','D'].includes(e.key)) handleInput(1,0);
-      if(e.code==='Space' && !isRunning) document.getElementById('startBtn').click();
-  });
-
-  // === 搖桿核心邏輯 (修復版) ===
   const joyBase = document.getElementById('joyBase');
   const joyKnob = document.getElementById('joyKnob');
   let joyActive = false;
   let joyCenter = {x:0, y:0};
   const maxRadius = 40; 
-  let lastJoyDir = {x:0, y:0}; // 記錄上一次搖桿觸發的方向，防止重複觸發
+  let lastJoyDir = {x:0, y:0};
 
-  // 計算並移動 Knob
   const updateJoystick = (clientX, clientY) => {
       const dx = clientX - joyCenter.x;
       const dy = clientY - joyCenter.y;
       const distance = Math.min(Math.sqrt(dx*dx + dy*dy), maxRadius);
       const angle = Math.atan2(dy, dx);
-      
-      // 移動 Knob 視覺
       const kx = Math.cos(angle) * distance;
       const ky = Math.sin(angle) * distance;
       joyKnob.style.transform = `translate(${kx}px, ${ky}px)`;
 
-      // 死區檢測 (Deadzone): 手指移動超過 15px 才判定為有效操作
       if(distance > 15) {
-          let absDx = Math.abs(dx);
-          let absDy = Math.abs(dy);
           let newX = 0, newY = 0;
+          if (Math.abs(dx) > Math.abs(dy)) newX = dx > 0 ? 1 : -1;
+          else newY = dy > 0 ? 1 : -1;
 
-          // 判斷主軸方向
-          if (absDx > absDy) {
-              newX = dx > 0 ? 1 : -1;
-          } else {
-              newY = dy > 0 ? 1 : -1;
-          }
-
-          // 只有當方向改變時才送出訊號
           if(newX !== lastJoyDir.x || newY !== lastJoyDir.y) {
               handleInput(newX, newY);
               lastJoyDir = {x: newX, y: newY};
@@ -394,51 +372,58 @@
       }
   };
 
-  // 僅監聽 Joystick 區域的 Touch Start
   joyBase.addEventListener('touchstart', (e) => {
       e.preventDefault();
       joyActive = true;
       const rect = joyBase.getBoundingClientRect();
       joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
-      
-      joyKnob.style.transition = 'none'; // 拖曳時取消動畫，反應最快
+      joyKnob.style.transition = 'none'; 
       updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
   }, {passive: false});
 
-  // 監聽全域 Touch Move (只有當 joyActive 為 true 時)
-  // 這樣即使滑出圈圈也能繼續控制
   window.addEventListener('touchmove', (e) => {
       if(!joyActive) return;
-      // e.preventDefault(); // 防止滾動 (已由 CSS touch-action 處理，但保留作為保險)
       updateJoystick(e.touches[0].clientX, e.touches[0].clientY);
   }, {passive: false});
 
-  // 監聽全域 Touch End
   window.addEventListener('touchend', (e) => {
       if(!joyActive) return;
       joyActive = false;
-      joyKnob.style.transition = 'transform 0.1s ease-out'; // 回彈動畫
+      joyKnob.style.transition = 'transform 0.1s ease-out';
       joyKnob.style.transform = `translate(0, 0)`;
-      lastJoyDir = {x:0, y:0}; // 重置方向記錄
+      lastJoyDir = {x:0, y:0};
   });
 
-  document.getElementById('startBtn').onclick = () => {
+  // 鍵盤
+  window.addEventListener('keydown', e => {
+      if(['ArrowUp','w','W'].includes(e.key)) handleInput(0,-1);
+      if(['ArrowDown','s','S'].includes(e.key)) handleInput(0,1);
+      if(['ArrowLeft','a','A'].includes(e.key)) handleInput(-1,0);
+      if(['ArrowRight','d','D'].includes(e.key)) handleInput(1,0);
+  });
+
+  // === 按鈕綁定 (修復卡住問題) ===
+  startBtn.onclick = () => {
+    // 啟動音效環境
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if(audioCtx.state === 'suspended') audioCtx.resume();
     
+    // 強制重置遊戲狀態
+    initGame();
+    
+    // 隱藏遮罩
     overlay.style.display = 'none';
-    if(!isRunning) {
-        isRunning = true; 
-        update();
-    } else {
-        reset();
-        isRunning = true;
-        update();
-    }
+    
+    // 開始
+    isRunning = true;
+    update();
   };
 
-  resize();
-  reset();
+  // 啟動流程
+  resize(); // 1. 先算尺寸
+  initGame(); // 2. 生成蛇與食物，並繪製一次
+  // 此時 isRunning 為 false，等待玩家按按鈕
+
 })();
 </script>
 </body>
