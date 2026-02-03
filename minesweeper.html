@@ -10,34 +10,49 @@
             background: var(--bg); color: white; margin: 0; 
             font-family: "Segoe UI", system-ui, sans-serif; 
             height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+            user-select: none;
         }
 
         /* 頂部資訊列 */
         header {
-            padding: 10px 15px; background: rgba(22, 27, 34, 0.9);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 15px; background: rgba(22, 27, 34, 0.95);
+            border-bottom: 1px solid rgba(255,255,255,0.15);
             display: flex; justify-content: space-between; align-items: center;
             z-index: 10; flex-shrink: 0; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
+        
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        
+        .home-btn {
+            text-decoration: none; font-size: 18px; color: #fff;
+            background: rgba(255,255,255,0.1); width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s;
+        }
+        .home-btn:active { transform: scale(0.9); background: var(--accent); color: #000; border-color: var(--accent); }
+
+        .game-title { font-weight: 900; font-size: 18px; letter-spacing: 1px; color: #fff; }
+        
         .hud { display: flex; gap: 15px; font-size: 18px; font-weight: bold; font-family: monospace; }
         .hud-item { color: var(--accent); display: flex; align-items: center; gap: 5px; }
-        .hud-item span { color: #fff; text-shadow: 0 0 5px var(--accent); }
+        .hud-item span { color: #fff; text-shadow: 0 0 5px var(--accent); min-width: 30px; text-align: right; }
 
-        /* 遊戲捲軸區域 (關鍵修改：允許滑動) */
+        /* 遊戲捲軸區域 */
         #game-container {
-            flex-grow: 1; overflow: auto; /* 允許卷軸 */
+            flex-grow: 1; overflow: auto; 
             position: relative;
             background: radial-gradient(circle, #0a0a1a 0%, #000 100%);
-            display: grid; place-items: center; /* 讓小棋盤置中 */
-            touch-action: pan-x pan-y; /* 允許瀏覽器處理滑動 */
+            display: grid; place-items: center;
+            touch-action: none; 
             -webkit-overflow-scrolling: touch;
         }
 
         canvas { 
             display: block; 
-            box-shadow: 0 0 30px rgba(0, 242, 255, 0.1);
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.05);
             border-radius: 4px;
-            margin: 20px; /* 邊距 */
+            margin: 20px;
         }
 
         /* 底部控制面板 */
@@ -71,7 +86,10 @@
 <body>
 
     <header>
-        <div style="font-weight:900; color:#fff;">MINESWEEPER</div>
+        <div class="header-left">
+            <a href="index.html" class="home-btn">🏠</a>
+            <div class="game-title">MINESWEEPER</div>
+        </div>
         <div class="hud">
             <div class="hud-item">🚩 <span id="flagVal">0</span></div>
             <div class="hud-item">⏱️ <span id="timeVal">0</span></div>
@@ -87,7 +105,7 @@
             <option value="9,9,10">初級 (9x9)</option>
             <option value="16,16,40" selected>中級 (16x16)</option>
             <option value="30,16,99">高級 (30x16)</option>
-            <option value="custom">自訂...</option>
+            <option value="custom">⚙️ 自訂...</option>
         </select>
         <button class="restart" onclick="startGame()">↺ 重新開始</button>
     </div>
@@ -107,13 +125,13 @@
     const timeEl = document.getElementById('timeVal');
     const modeSel = document.getElementById('mode');
 
-    let cols, rows, mines, cellSize = 34; // 固定的舒適格子大小
+    let cols, rows, mines, cellSize = 34;
     let grid = [], particles = [];
-    let state = 'idle'; // idle, playing, over
+    let state = 'idle'; 
     let flags = 0, startTime = 0, timerInt = null;
     let dpr = window.devicePixelRatio || 1;
     
-    // 自訂音效上下文
+    // 音效
     let audioCtx;
     function playSfx(type) {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -160,18 +178,34 @@
         timeEl.innerText = '0';
         particles = [];
 
-        // 讀取設定
+        // --- 修正：自訂模式邏輯 ---
         let val = modeSel.value;
         if(val === 'custom') {
-            // 簡單的自訂邏輯防呆
-            cols = 20; rows = 20; mines = 50;
+            // 跳出輸入框，並給予預設值
+            let c = prompt("請輸入寬度 (格數 5-50):", "20");
+            let r = prompt("請輸入高度 (格數 5-50):", "30");
+            let m = prompt("請輸入地雷數:", "100");
+
+            // 如果玩家按取消，預設回中級
+            if(c === null || r === null || m === null) {
+                modeSel.value = "16,16,40";
+                [cols, rows, mines] = [16, 16, 40];
+            } else {
+                // 轉換數字並加上限制，避免瀏覽器當機
+                cols = parseInt(c) || 20;
+                rows = parseInt(r) || 30;
+                mines = parseInt(m) || 100;
+
+                cols = Math.max(5, Math.min(cols, 50)); // 限制寬度 5~50
+                rows = Math.max(5, Math.min(rows, 50)); // 限制高度 5~50
+                mines = Math.max(1, Math.min(mines, (cols * rows) - 1)); // 地雷不能比格子多
+            }
         } else {
             [cols, rows, mines] = val.split(',').map(Number);
         }
         flagEl.innerText = mines;
 
-        // 初始化畫布 (Retina 支援)
-        // 關鍵修正：畫布大小根據格子數量決定，不隨螢幕縮放
+        // 初始化畫布
         canvas.width = cols * cellSize * dpr;
         canvas.height = rows * cellSize * dpr;
         canvas.style.width = (cols * cellSize) + 'px';
@@ -183,10 +217,7 @@
         for(let y=0; y<rows; y++) {
             let row = [];
             for(let x=0; x<cols; x++) {
-                row.push({
-                    isMine: false, state: 'hidden', neighbor: 0,
-                    x: x, y: y, anim: 0 // 動畫參數
-                });
+                row.push({ isMine: false, state: 'hidden', neighbor: 0, x: x, y: y, anim: 0 });
             }
             grid.push(row);
         }
@@ -198,13 +229,14 @@
         while(placed < mines) {
             let x = Math.floor(Math.random() * cols);
             let y = Math.floor(Math.random() * rows);
-            // 確保第一下點擊周圍安全
-            if(!grid[y][x].isMine && Math.abs(x - firstX) > 1 && Math.abs(y - firstY) > 1) {
+            
+            // 戰術修正：只避開第一點擊的那一格，讓周圍可能有雷
+            if(!grid[y][x].isMine && (x !== firstX || y !== firstY)) {
                 grid[y][x].isMine = true;
                 placed++;
             }
         }
-        // 計算數字
+        
         for(let y=0; y<rows; y++) {
             for(let x=0; x<cols; x++) {
                 if(grid[y][x].isMine) continue;
@@ -231,7 +263,7 @@
         if(state === 'idle') placeMines(x, y);
 
         cell.state = 'revealed';
-        cell.anim = 1; // 觸發動畫
+        cell.anim = 1; 
         
         if(cell.isMine) {
             gameOver(false, x, y);
@@ -240,7 +272,6 @@
 
         playSfx('click');
         if(cell.neighbor === 0) {
-            // 擴散邏輯
             for(let dy=-1; dy<=1; dy++) for(let dx=-1; dx<=1; dx++) reveal(x+dx, y+dy);
         }
         checkWin();
@@ -269,12 +300,9 @@
     function gameOver(win, ex, ey) {
         state = 'over';
         clearInterval(timerInt);
-        
         if(!win) {
-            // 爆炸特效
             playSfx('boom');
             if(navigator.vibrate) navigator.vibrate(300);
-            // 產生大量粒子
             for(let i=0; i<30; i++) {
                 particles.push({
                     x: ex * cellSize + cellSize/2, y: ey * cellSize + cellSize/2,
@@ -282,7 +310,6 @@
                     life: 1.0, color: '#ff0055'
                 });
             }
-            // 顯示所有地雷
             grid.forEach(row => row.forEach(c => {
                 if(c.isMine) c.state = 'revealed';
             }));
@@ -306,24 +333,19 @@
         if(covered === 0) gameOver(true);
     }
 
-    // --- 繪圖循環 ---
     function draw() {
-        // 清除畫面
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 畫網格
         grid.forEach(row => row.forEach(c => {
             let px = c.x * cellSize;
             let py = c.y * cellSize;
             
-            // 邊框
             ctx.strokeStyle = '#222';
             ctx.lineWidth = 1;
             ctx.strokeRect(px, py, cellSize, cellSize);
 
             if(c.state === 'hidden' || c.state === 'flagged') {
-                // 未翻開的樣式
                 let grad = ctx.createLinearGradient(px, py, px+cellSize, py+cellSize);
                 grad.addColorStop(0, '#2a2a3a');
                 grad.addColorStop(1, '#161622');
@@ -337,11 +359,9 @@
                     ctx.fillText('🚩', px + cellSize/2, py + cellSize/2);
                 }
             } else {
-                // 已翻開
                 ctx.fillStyle = c.isMine ? '#300' : '#0a0a10';
                 ctx.fillRect(px, py, cellSize, cellSize);
 
-                // 開啟動畫 (淡入)
                 if(c.anim > 0) {
                     ctx.fillStyle = `rgba(255, 255, 255, ${c.anim * 0.3})`;
                     ctx.fillRect(px, py, cellSize, cellSize);
@@ -367,7 +387,6 @@
             }
         }));
 
-        // 畫粒子
         ctx.globalCompositeOperation = 'lighter';
         for(let i=particles.length-1; i>=0; i--) {
             let p = particles[i];
@@ -382,10 +401,8 @@
         requestAnimationFrame(draw);
     }
 
-    // --- 互動控制 ---
     let longPressTimer, startX, startY;
     
-    // 獲取格子的工具函式 (考慮到卷軸位置)
     function getCellFromEvent(e) {
         let rect = canvas.getBoundingClientRect();
         let clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -396,7 +413,7 @@
     }
 
     canvas.addEventListener('mousedown', e => {
-        if(e.button === 2) { // 右鍵
+        if(e.button === 2) { 
             let c = getCellFromEvent(e);
             toggleFlag(c.x, c.y);
         } else {
@@ -406,7 +423,6 @@
     });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // 手機長按邏輯
     canvas.addEventListener('touchstart', e => {
         if(state === 'over') return;
         let c = getCellFromEvent(e);
@@ -416,11 +432,10 @@
         longPressTimer = setTimeout(() => {
             toggleFlag(c.x, c.y);
             longPressTimer = null;
-        }, 300); // 300ms 長按插旗
+        }, 300); 
     }, {passive: false});
 
     canvas.addEventListener('touchmove', e => {
-        // 如果手指移動超過一定距離，視為「滑動畫面」，取消長按
         let dx = e.touches[0].clientX - startX;
         let dy = e.touches[0].clientY - startY;
         if(Math.abs(dx) > 10 || Math.abs(dy) > 10) {
@@ -430,11 +445,8 @@
     }, {passive: false});
 
     canvas.addEventListener('touchend', e => {
-        if(longPressTimer) { // 沒有觸發長按，視為點擊
+        if(longPressTimer) { 
             clearTimeout(longPressTimer);
-            // 由於 touchend 沒有 clientX，我們用 startX/Y 近似
-            // 但更好的做法是不要在這裡觸發 reveal，因為可能已經被判定為滑動
-            // 這裡簡單處理：如果沒被取消，就是點擊
             let rect = canvas.getBoundingClientRect();
             let x = Math.floor((startX - rect.left) / (rect.width / cols));
             let y = Math.floor((startY - rect.top) / (rect.height / rows));
