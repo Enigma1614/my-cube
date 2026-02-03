@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>快樂遊戲大廳 🎮</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white; 
+            text-align: center; 
+            font-family: "Microsoft JhengHei", sans-serif; 
+            margin: 0; 
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        h1 { 
+            font-size: 40px; 
+            margin-bottom: 40px; 
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            letter-spacing: 2px;
+        }
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            width: 80%;
+            max-width: 400px;
+        }
+        .game-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 20px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            text-decoration: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        .game-card:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .icon {
+            font-size: 50px;
+            margin-right: 20px;
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
+        }
+        .info {
+            text-align: left;
+        }
+        .game-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0;
+            color: #f1c40f;
+        }
+        .game-desc {
+            font-size: 14px;
+            color: #ddd;
+            margin-top: 5px;
+        }
+        
+        /* 播放背景音樂的隱藏按鈕 */
+        #bgm-hint {
+            position: absolute;
+            bottom: 20px;
+            font-size: 12px;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎮 遊戲選單</h1>
+
+    <div class="menu-container">
+        <a href="tetris.html" class="game-card">
+            <div class="icon">🧱</div>
+            <div class="info">
+                <div class="game-title">俄羅斯積木</div>
+                <div class="game-desc">武俠風消消樂，連擊超爽快！</div>
+            </div>
+        </a>
+
+        <a href="snake.html" class="game-card">
+            <div class="icon">🐍</div>
+            <div class="info">
+                <div class="game-title">霓虹貪食蛇</div>
+                <div class="game-desc">經典玩法，小心別撞到牆壁！</div>
+            </div>
+        </a>
+    </div>
+
+    <div id="bgm-hint">Created for Kids ❤️</div>
+
+</body>
+</html>
