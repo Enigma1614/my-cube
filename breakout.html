@@ -3,256 +3,182 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>豪華版：極限爆破 🧱</title>
+    <title>極限爆破 3.0：Retina 旗艦版</title>
     <style>
-        body { background: #000; color: white; margin: 0; overflow: hidden; touch-action: none; font-family: "Microsoft JhengHei", sans-serif; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #header { padding: 15px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); }
-        .score-box { font-size: 24px; font-weight: bold; color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
-        #powerup-status { position: absolute; bottom: 100px; width: 100%; text-align: center; font-size: 22px; color: #0f0; text-shadow: 0 0 10px #0f0; opacity: 0; transition: 0.3s; font-weight: bold; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
-        h1 { margin: 0; font-size: 45px; color: #ff0055; text-shadow: 0 0 20px red; }
-        button { padding: 15px 45px; font-size: 24px; background: #00d2ff; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; margin-top: 20px; box-shadow: 0 0 20px #00d2ff; }
-        .hint { color: #888; font-size: 14px; margin-top: 10px; }
+        body { background: #050510; color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
+        #header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); }
+        .score-box { font-size: 24px; font-weight: 800; color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
+        #powerup-status { position: absolute; bottom: 100px; width: 100%; text-align: center; font-size: 20px; color: #0f0; font-weight: bold; opacity: 0; transition: 0.3s; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; backdrop-filter: blur(5px); }
+        h1 { margin: 0; font-size: clamp(30px, 8vw, 48px); color: #ff0055; text-shadow: 0 0 20px red; }
+        button { padding: 15px 40px; font-size: 22px; background: #00d2ff; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; margin-top: 20px; box-shadow: 0 0 20px #00d2ff; }
+        .hint { color: #888; font-size: 12px; margin-top: 10px; }
+        canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
         <div id="header">
-            <div style="color:#aaa">❤️ 無限模式</div>
-            <div class="score-box">得分: <span id="scoreVal">0</span></div>
+            <div style="color:#4cc9f0; font-weight:bold;">BRICK BREAKER PRO</div>
+            <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
         </div>
         <div id="powerup-status"></div>
     </div>
     <div id="overlay">
-        <h1>極限爆破 2.0</h1>
-        <p>摧毀 BOSS 金磚，收集強力道具！</p>
-        <button onclick="startGame()">🚀 啟動引擎</button>
-        <div class="hint">( 點擊按鈕後將開啟音樂與音效 )</div>
+        <h1 id="m-title">極限爆破 3.0</h1>
+        <p id="m-desc">每次生成 3 排磚塊！別讓它們到底部</p>
+        <button id="startBtn">🚀 啟動遊戲</button>
+        <div class="hint">支援觸控滑動與滑鼠操作</div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let canvasW, canvasH, animationId, isPlaying = false;
-        let score = 0, hitCount = 0, speedMult = 1;
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let canvasW, canvasH, dpr, isPlaying = false;
+    let score = 0, hitCount = 0, speedMult = 1, shake = 0;
+    let bricks = [], balls = [], paddle = { x: 0, w: 100, h: 15 };
+    let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
 
-        // --- 音頻引擎 (Web Audio API) ---
-        let audioCtx;
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                startBGM();
-            }
-        }
+    // --- 音訊引擎 ---
+    let audioCtx;
+    function playSfx(f, type='triangle', d=0.1, v=0.1) {
+        if(!audioCtx || audioCtx.state !== 'running') return;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+        g.gain.setValueAtTime(v, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    }
 
-        function playSound(type) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
+    // --- 高畫質適應 ---
+    function setupCanvas() {
+        dpr = window.devicePixelRatio || 1;
+        canvasW = window.innerWidth; canvasH = window.innerHeight;
+        canvas.width = canvasW * dpr; canvas.height = canvasH * dpr;
+        ctx.scale(dpr, dpr);
+        paddle.w = canvasW * 0.25;
+        paddle.x = (canvasW - paddle.w) / 2;
+    }
+    window.addEventListener('resize', setupCanvas);
+    setupCanvas();
 
-            const now = audioCtx.currentTime;
-            if (type === 'hit') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(440, now);
-                osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
-                gain.gain.setValueAtTime(0.1, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.1);
-                osc.start(); osc.stop(now + 0.1);
-            } else if (type === 'boss') {
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(220, now);
-                gain.gain.setValueAtTime(0.1, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.2);
-                osc.start(); osc.stop(now + 0.2);
-            } else if (type === 'explosion') {
-                const bufferSize = audioCtx.sampleRate * 0.2;
-                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const data = buffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = buffer;
-                const noiseGain = audioCtx.createGain();
-                noiseGain.gain.setValueAtTime(0.2, now);
-                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-                noise.connect(noiseGain); noiseGain.connect(audioCtx.destination);
-                noise.start();
-            } else if (type === 'powerup') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(200, now);
-                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
-                gain.gain.setValueAtTime(0.1, now);
-                gain.gain.linearRampToValueAtTime(0, now + 0.3);
-                osc.start(); osc.stop(now + 0.3);
-            }
-        }
-
-        function startBGM() {
-            const loop = () => {
-                if(!isPlaying) return;
-                const now = audioCtx.currentTime;
-                const notes = [110, 130, 146, 164];
-                notes.forEach((f, i) => {
-                    const osc = audioCtx.createOscillator();
-                    const g = audioCtx.createGain();
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(f, now + i * 0.5);
-                    g.gain.setValueAtTime(0.02, now + i * 0.5);
-                    g.gain.linearRampToValueAtTime(0, now + i * 0.5 + 0.4);
-                    osc.connect(g); g.connect(audioCtx.destination);
-                    osc.start(now + i * 0.5); osc.stop(now + i * 0.5 + 0.4);
-                });
-                setTimeout(loop, 2000);
-            };
-            loop();
-        }
-
-        // --- 遊戲邏輯 ---
-        const BRICK_COL_COUNT = 6;
-        let bricks = [], balls = [], particles = [], currentPaddleWidth, paddleX;
-        let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
-
-        function resize() {
-            canvasW = window.innerWidth; canvasH = window.innerHeight;
-            canvas.width = canvasW; canvas.height = canvasH;
-            paddleX = canvasW / 2 - 50;
-        }
-        window.addEventListener('resize', resize); resize();
-
-        function spawnRow() {
-            bricks.forEach(b => { b.row++; b.targetY = b.row * 35 + 80; });
-            for(let c=0; c<BRICK_COL_COUNT; c++) {
-                let r = Math.random(), type = 'NORMAL', color = `hsl(${Math.random()*360}, 60%, 50%)`, hits = 1;
-                if (r < 0.1) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
-                else if (r < 0.15) { type = 'BOMB'; color = '#ff0055'; }
-                else if (r < 0.20) { type = 'LONG'; color = '#00ff00'; }
-                else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; }
-                else if (r < 0.30) { type = 'SHIELD'; color = '#00d2ff'; }
-                else if (r < 0.35) { type = 'SPEED'; color = '#cc00ff'; }
-
-                bricks.push({ x: c * (canvasW/BRICK_COL_COUNT) + 5, y: -30, targetY: 80, row: 0, col: c, status: 1, type, color, hits });
-            }
-        }
-
-        function activatePowerup(type) {
-            playSound('powerup');
-            let msg = "";
-            if (type === 'LONG') { powerups.long = Date.now() + 10000; msg = "📏 擋板加長！"; }
-            else if (type === 'FIREBALL') { powerups.fireball = Date.now() + 8000; msg = "🔥 超級火球！"; }
-            else if (type === 'SHIELD') { powerups.shield = Date.now() + 15000; msg = "🛡️ 底部護盾！"; }
-            else if (type === 'SPEED') { powerups.fast = Date.now() + 5000; msg = "🚀 極速衝刺！"; }
-            const el = document.getElementById('powerup-status');
-            el.innerText = msg; el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 2000);
-        }
-
-        function update() {
-            if(!isPlaying) return;
-            
-            speedMult = (Date.now() < powerups.fast) ? 1.8 : 1.0;
-            let targetW = (Date.now() < powerups.long) ? 180 : 100;
-            currentPaddleWidth = (currentPaddleWidth || 100) + (targetW - (currentPaddleWidth || 100)) * 0.1;
-
-            bricks.forEach((b, idx) => {
-                b.y += (b.targetY - b.y) * 0.1;
-                if (b.status === 1 && b.y > canvasH - 80) gameOver("城市淪陷", "磚塊壓到了底線！");
-            });
-
-            balls.forEach(ball => {
-                if(!ball.active) return;
-                ball.x += ball.dx * speedMult; ball.y += ball.dy * speedMult;
-
-                if(ball.x < 8 || ball.x > canvasW - 8) { ball.dx *= -1; playSound('hit'); }
-                if(ball.y < 8) { ball.dy *= -1; playSound('hit'); }
-
-                if(ball.y > canvasH - 60 && ball.y < canvasH - 40 && ball.dy > 0) {
-                    if(ball.x > paddleX && ball.x < paddleX + currentPaddleWidth) {
-                        ball.dy *= -1; playSound('hit');
-                        ball.dx = (ball.x - (paddleX + currentPaddleWidth/2)) / (currentPaddleWidth/2) * 6;
-                    }
+    function spawnThreeRows() {
+        shake = 8;
+        playSfx(150, 'sawtooth', 0.3, 0.05);
+        for(let i=0; i<3; i++) {
+            setTimeout(() => {
+                bricks.forEach(b => { b.row++; b.targetY = b.row * 35 + 80; });
+                for(let c=0; c<6; c++) {
+                    let r = Math.random(), type = 'NORMAL', color = `hsl(${Math.random()*360}, 60%, 50%)`, hits = 1;
+                    if (r < 0.1) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
+                    else if (r < 0.15) { type = 'BOMB'; color = '#ff0055'; }
+                    else if (r < 0.2) { type = 'LONG'; color = '#00ff00'; }
+                    else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; }
+                    else if (r < 0.3) { type = 'SHIELD'; color = '#00d2ff'; }
+                    else if (r < 0.35) { type = 'SPEED'; color = '#cc00ff'; }
+                    bricks.push({ x: c*(canvasW/6)+5, y: -40, targetY: 80, row: 0, col: c, status: 1, type, color, hits });
                 }
-                if(Date.now() < powerups.shield && ball.y > canvasH - 15) { ball.dy *= -1; playSound('hit'); }
-                if(ball.y > canvasH + 20) ball.active = false;
-
-                bricks.forEach((b, i) => {
-                    if(b.status === 1 && ball.x > b.x && ball.x < b.x + (canvasW/BRICK_COL_COUNT)-10 && ball.y > b.y && ball.y < b.y + 25) {
-                        if (Date.now() < powerups.fireball) {} else { ball.dy *= -1; }
-                        b.hits--;
-                        if(b.hits <= 0) {
-                            b.status = 0; score += (b.type === 'BOSS' ? 50 : 10);
-                            if(b.type === 'BOMB') { playSound('explosion'); triggerBomb(b.col, b.row); }
-                            else { playSound('hit'); }
-                            if(b.type !== 'NORMAL' && b.type !== 'BOMB' && b.type !== 'BOSS') activatePowerup(b.type);
-                        } else {
-                            playSound('boss');
-                        }
-                        hitCount++;
-                        if(hitCount % 10 === 0) spawnRow();
-                    }
-                });
-            });
-
-            if(balls.filter(b=>b.active).length === 0) gameOver("遊戲結束", "球全部掉落了");
-            particles.forEach((p, i) => { p.x += p.vx; p.y += p.vy; p.life -= 0.02; if(p.life<=0) particles.splice(i,1); });
+            }, i * 120);
         }
+    }
 
-        function triggerBomb(col, row) {
-            bricks.forEach((b, i) => {
-                let dist = Math.sqrt(Math.pow(b.col-col, 2) + Math.pow(b.row-row, 2));
-                if(dist < 1.9 && b.status === 1) { b.status = 0; score += 10; }
-            });
-        }
+    function update() {
+        if(!isPlaying) return;
+        if(shake > 0) shake *= 0.9;
+        speedMult = (Date.now() < powerups.fast) ? 1.7 : 1.1;
+        let tw = (Date.now() < powerups.long) ? canvasW * 0.45 : canvasW * 0.25;
+        paddle.w += (tw - paddle.w) * 0.1;
 
-        function draw() {
-            ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvasW,canvasH);
-            if(Date.now() < powerups.shield) { ctx.fillStyle = '#00d2ff55'; ctx.fillRect(0, canvasH-10, canvasW, 10); }
+        bricks.forEach(b => {
+            b.y += (b.targetY - b.y) * 0.1;
+            if(b.status === 1 && b.y > canvasH - 100) endGame("城市淪陷！", "磚塊到達底線");
+        });
+
+        balls.forEach(ball => {
+            if(!ball.active) return;
+            ball.x += ball.dx * speedMult; ball.y += ball.dy * speedMult;
+            if(ball.x < 10 || ball.x > canvasW - 10) { ball.dx *= -1; playSfx(400); }
+            if(ball.y < 10) { ball.dy *= -1; playSfx(400); }
+            if(ball.y > canvasH - 65 && ball.y < canvasH - 45 && ball.dy > 0) {
+                if(ball.x > paddle.x && ball.x < paddle.x + paddle.w) {
+                    ball.dy *= -1; playSfx(600);
+                    ball.dx = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2) * 6;
+                }
+            }
+            if(Date.now() < powerups.shield && ball.y > canvasH - 20) { ball.dy *= -1; playSfx(500); }
+            if(ball.y > canvasH + 20) ball.active = false;
 
             bricks.forEach(b => {
-                if(b.status !== 1) return;
-                ctx.fillStyle = b.color;
-                ctx.shadowBlur = (b.type === 'NORMAL') ? 0 : 15; ctx.shadowColor = b.color;
-                ctx.beginPath(); ctx.roundRect(b.x, b.y, (canvasW/BRICK_COL_COUNT)-10, 25, 5); ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = "white"; ctx.font = "bold 14px Arial";
-                if(b.type === 'BOSS') ctx.fillText(b.hits, b.x + 20, b.y + 18);
-                else if(b.type === 'BOMB') ctx.fillText('💣', b.x + 15, b.y + 18);
-                else if(b.type === 'SPEED') ctx.fillText('🚀', b.x + 15, b.y + 18);
+                if(b.status === 1 && ball.x > b.x && ball.x < b.x + (canvasW/6)-10 && ball.y > b.y && ball.y < b.y + 25) {
+                    if(!(Date.now() < powerups.fireball)) ball.dy *= -1;
+                    b.hits--;
+                    if(b.hits <= 0) {
+                        b.status = 0; score += (b.type === 'BOSS' ? 50 : 10);
+                        playSfx(b.type === 'BOSS' ? 200 : 800, 'square');
+                        if(b.type !== 'NORMAL' && b.type !== 'BOMB' && b.type !== 'BOSS') {
+                            const el = document.getElementById('powerup-status');
+                            el.innerText = b.type + " 模式！"; el.style.opacity = 1;
+                            powerups[b.type.toLowerCase()] = Date.now() + 10000;
+                            setTimeout(()=>el.style.opacity=0, 2000);
+                        }
+                        hitCount++;
+                        if(hitCount % 10 === 0) spawnThreeRows();
+                    } else { playSfx(300, 'square'); }
+                }
             });
+        });
+        if(balls.filter(b=>b.active).length === 0) endGame("GAME OVER", "球掉光了");
+    }
 
-            ctx.fillStyle = (Date.now() < powerups.long) ? '#0f0' : '#00d2ff';
-            ctx.beginPath(); ctx.roundRect(paddleX, canvasH - 50, currentPaddleWidth, 15, 10); ctx.fill();
+    function draw() {
+        ctx.save();
+        if(shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+        ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvasW,canvasH);
+        if(Date.now() < powerups.shield) { ctx.fillStyle = '#00d2ff33'; ctx.fillRect(0, canvasH-15, canvasW, 15); }
+        bricks.forEach(b => {
+            if(b.status !== 1) return;
+            ctx.fillStyle = b.color;
+            ctx.beginPath(); ctx.roundRect(b.x, b.y, (canvasW/6)-10, 25, 6); ctx.fill();
+            if(b.type !== 'NORMAL') { ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial"; ctx.fillText(b.type === 'BOSS' ? b.hits : '★', b.x + 10, b.y + 18); }
+        });
+        ctx.fillStyle = (Date.now() < powerups.long) ? '#0f0' : '#00d2ff';
+        ctx.beginPath(); ctx.roundRect(paddle.x, canvasH-60, paddle.w, paddle.h, 10); ctx.fill();
+        balls.forEach(ball => {
+            if(!ball.active) return;
+            ctx.fillStyle = (Date.now() < powerups.fireball) ? '#f00' : '#fff';
+            ctx.beginPath(); ctx.arc(ball.x, ball.y, 8, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.restore();
+        document.getElementById('scoreVal').innerText = score;
+        if(isPlaying) requestAnimationFrame(draw);
+    }
 
-            balls.forEach(ball => {
-                if(!ball.active) return;
-                ctx.fillStyle = (Date.now() < powerups.fireball) ? '#f40' : 'white';
-                ctx.beginPath(); ctx.arc(ball.x, ball.y, 8, 0, Math.PI*2); ctx.fill();
-            });
+    function endGame(t, d) {
+        isPlaying = false;
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('m-title').innerText = t;
+        document.getElementById('m-desc').innerText = d + " Score: " + score;
+    }
 
-            document.getElementById('scoreVal').innerText = score;
-            animationId = requestAnimationFrame(() => { update(); draw(); });
-        }
+    document.getElementById('startBtn').onclick = () => {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById('overlay').style.display = 'none';
+        score = 0; hitCount = 0; bricks = []; balls = [{ x: canvasW/2, y: canvasH-150, dx: 4, dy: -4, active: true }];
+        isPlaying = true; spawnThreeRows(); draw();
+        const loop = () => { if(isPlaying) { update(); setTimeout(loop, 16); } }; loop();
+    };
 
-        function startGame() {
-            initAudio();
-            document.getElementById('overlay').style.display = 'none';
-            score = 0; hitCount = 0; bricks = []; balls = []; isPlaying = true;
-            spawnRow(); spawnRow(); spawnRow();
-            balls.push({ x: canvasW/2, y: canvasH-100, dx: 4, dy: -4, active: true });
-            draw();
-        }
-
-        function gameOver(t, d) {
-            isPlaying = false; cancelAnimationFrame(animationId);
-            document.getElementById('overlay').style.display = 'flex';
-            document.getElementById('overlay').querySelector('h1').innerText = t;
-            document.getElementById('overlay').querySelector('p').innerText = d + " 得分: " + score;
-        }
-
-        document.addEventListener('mousemove', e => { paddleX = e.clientX - currentPaddleWidth/2; });
-        document.addEventListener('touchmove', e => { e.preventDefault(); paddleX = e.touches[0].clientX - currentPaddleWidth/2; }, {passive:false});
-    </script>
+    const move = (e) => { 
+        let x = e.touches ? e.touches[0].clientX : e.clientX;
+        paddle.x = x - paddle.w/2;
+        if(paddle.x < 0) paddle.x = 0;
+        if(paddle.x > canvasW - paddle.w) paddle.x = canvasW - paddle.w;
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', (e)=>{ e.preventDefault(); move(e); }, {passive:false});
+</script>
 </body>
 </html>
