@@ -3,182 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>極限爆破 3.0：Retina 旗艦版</title>
+    <title>極限爆破 3.5：旗艦級優化版</title>
     <style>
-        body { background: #050510; color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
-        #header { padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); }
-        .score-box { font-size: 24px; font-weight: 800; color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
-        #powerup-status { position: absolute; bottom: 100px; width: 100%; text-align: center; font-size: 20px; color: #0f0; font-weight: bold; opacity: 0; transition: 0.3s; }
-        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; backdrop-filter: blur(5px); }
-        h1 { margin: 0; font-size: clamp(30px, 8vw, 48px); color: #ff0055; text-shadow: 0 0 20px red; }
-        button { padding: 15px 40px; font-size: 22px; background: #00d2ff; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; margin-top: 20px; box-shadow: 0 0 20px #00d2ff; }
-        .hint { color: #888; font-size: 12px; margin-top: 10px; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        :root { --accent: #00d2ff; --bg: #050510; }
+        body { background: var(--bg); color: white; margin: 0; overflow: hidden; touch-action: none; font-family: system-ui, -apple-system, sans-serif; }
+        canvas { display: block; width: 100vw; height: 100vh; image-rendering: -webkit-optimize-contrast; }
+        #ui { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; }
+        header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.4); }
+        .score-box { font-size: 26px; font-weight: 900; color: #f1c40f; text-shadow: 0 0 10px #f1c40f; }
+        #status { position: absolute; bottom: 120px; width: 100%; text-align: center; font-size: 22px; color: #0f0; font-weight: bold; opacity: 0; transition: 0.3s; }
+        #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; backdrop-filter: blur(8px); }
+        h1 { margin: 0; font-size: clamp(32px, 10vw, 50px); color: #ff0055; text-shadow: 0 0 20px red; text-align: center; }
+        button { padding: 16px 45px; font-size: 22px; background: var(--accent); border: none; border-radius: 50px; cursor: pointer; font-weight: bold; margin-top: 25px; box-shadow: 0 0 25px var(--accent); -webkit-appearance: none; }
+        .hint { color: #888; font-size: 13px; margin-top: 15px; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
-    <div id="ui-layer">
-        <div id="header">
-            <div style="color:#4cc9f0; font-weight:bold;">BRICK BREAKER PRO</div>
+    <div id="ui">
+        <header>
+            <div style="color:var(--accent); font-weight:800; letter-spacing:1px;">BREAKOUT PRO</div>
             <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
-        </div>
-        <div id="powerup-status"></div>
+        </header>
+        <div id="status"></div>
     </div>
     <div id="overlay">
-        <h1 id="m-title">極限爆破 3.0</h1>
-        <p id="m-desc">每次生成 3 排磚塊！別讓它們到底部</p>
-        <button id="startBtn">🚀 啟動遊戲</button>
-        <div class="hint">支援觸控滑動與滑鼠操作</div>
+        <h1 id="m-title">極限爆破 3.5</h1>
+        <p id="m-desc" style="color:#ccc; text-align:center; padding:0 20px;">三倍磚塊下落！摧毀金磚 BOSS 獲取高分</p>
+        <button id="startBtn">START GAME</button>
+        <div class="hint">支援滑鼠左右移動或手指滑動</div>
     </div>
 
 <script>
+(() => {
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    let canvasW, canvasH, dpr, isPlaying = false;
-    let score = 0, hitCount = 0, speedMult = 1, shake = 0;
-    let bricks = [], balls = [], paddle = { x: 0, w: 100, h: 15 };
+    const scoreEl = document.getElementById('scoreVal');
+    const statusEl = document.getElementById('status');
+    const overlay = document.getElementById('overlay');
+
+    let canvasW, canvasH, dpr;
+    let isPlaying = false, score = 0, hitCount = 0, shake = 0;
+    let bricks = [], balls = [], paddle = { x: 0, y: 0, w: 100, h: 16, targetW: 100 };
     let powerups = { long: 0, fireball: 0, shield: 0, fast: 0 };
+    let audioCtx, bgmTimer;
 
-    // --- 音訊引擎 ---
-    let audioCtx;
-    function playSfx(f, type='triangle', d=0.1, v=0.1) {
-        if(!audioCtx || audioCtx.state !== 'running') return;
-        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-        g.gain.setValueAtTime(v, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(); o.stop(audioCtx.currentTime + d);
+    // --- 音訊引擎 (穩固版) ---
+    function playSfx(freq, type='triangle', duration=0.1, vol=0.1) {
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
     }
 
-    // --- 高畫質適應 ---
-    function setupCanvas() {
+    // --- 高畫質適應與物理界限初始化 ---
+    function initSizing() {
         dpr = window.devicePixelRatio || 1;
-        canvasW = window.innerWidth; canvasH = window.innerHeight;
-        canvas.width = canvasW * dpr; canvas.height = canvasH * dpr;
+        canvasW = window.innerWidth;
+        canvasH = window.innerHeight;
+        canvas.width = canvasW * dpr;
+        canvas.height = canvasH * dpr;
         ctx.scale(dpr, dpr);
-        paddle.w = canvasW * 0.25;
-        paddle.x = (canvasW - paddle.w) / 2;
+        
+        paddle.y = canvasH - 80;
+        paddle.targetW = Math.max(100, canvasW * 0.25);
+        if (!paddle.w) paddle.w = paddle.targetW;
     }
-    window.addEventListener('resize', setupCanvas);
-    setupCanvas();
+    window.addEventListener('resize', initSizing);
+    initSizing();
 
-    function spawnThreeRows() {
-        shake = 8;
-        playSfx(150, 'sawtooth', 0.3, 0.05);
-        for(let i=0; i<3; i++) {
+    // --- 核心邏輯：三排連發 ---
+    function spawnWave() {
+        shake = 12;
+        playSfx(100, 'sawtooth', 0.4, 0.05);
+        const colCount = 6;
+        const brickW = (canvasW - 40) / colCount;
+        
+        for (let i = 0; i < 3; i++) {
             setTimeout(() => {
-                bricks.forEach(b => { b.row++; b.targetY = b.row * 35 + 80; });
-                for(let c=0; c<6; c++) {
-                    let r = Math.random(), type = 'NORMAL', color = `hsl(${Math.random()*360}, 60%, 50%)`, hits = 1;
+                bricks.forEach(b => { 
+                    b.row++; 
+                    b.targetY = b.row * 35 + 80; 
+                });
+                for (let c = 0; c < colCount; c++) {
+                    const r = Math.random();
+                    let type = 'NORMAL', color = `hsl(${Math.random()*360}, 65%, 55%)`, hits = 1;
                     if (r < 0.1) { type = 'BOSS'; color = '#FFD700'; hits = 3; }
                     else if (r < 0.15) { type = 'BOMB'; color = '#ff0055'; }
                     else if (r < 0.2) { type = 'LONG'; color = '#00ff00'; }
                     else if (r < 0.25) { type = 'FIREBALL'; color = '#ffaa00'; }
                     else if (r < 0.3) { type = 'SHIELD'; color = '#00d2ff'; }
                     else if (r < 0.35) { type = 'SPEED'; color = '#cc00ff'; }
-                    bricks.push({ x: c*(canvasW/6)+5, y: -40, targetY: 80, row: 0, col: c, status: 1, type, color, hits });
+
+                    bricks.push({
+                        x: 20 + c * brickW, y: -40, targetY: 80, 
+                        w: brickW - 5, h: 25, 
+                        row: 0, col: c, status: 1, type, color, hits
+                    });
                 }
-            }, i * 120);
+            }, i * 150);
         }
     }
 
+    function activatePowerup(type) {
+        playSfx(800, 'sine', 0.4);
+        const key = type.toLowerCase();
+        powerups[key] = Date.now() + 10000;
+        statusEl.innerText = type + " POWER!";
+        statusEl.style.opacity = 1;
+        setTimeout(() => statusEl.style.opacity = 0, 2000);
+    }
+
+    // --- 物理更新引擎 ---
     function update() {
-        if(!isPlaying) return;
-        if(shake > 0) shake *= 0.9;
-        speedMult = (Date.now() < powerups.fast) ? 1.7 : 1.1;
-        let tw = (Date.now() < powerups.long) ? canvasW * 0.45 : canvasW * 0.25;
+        if (!isPlaying) return;
+        
+        if (shake > 0) shake *= 0.85;
+        
+        // 擋板寬度平滑過渡
+        let tw = (Date.now() < powerups.long) ? canvasW * 0.5 : Math.max(100, canvasW * 0.25);
         paddle.w += (tw - paddle.w) * 0.1;
 
+        // 磚塊緩動
+        bricks = bricks.filter(b => b.status === 1);
         bricks.forEach(b => {
             b.y += (b.targetY - b.y) * 0.1;
-            if(b.status === 1 && b.y > canvasH - 100) endGame("城市淪陷！", "磚塊到達底線");
+            if (b.y + b.h > paddle.y + 10) endGame("DEFEATED", "磚塊入侵了底線！");
         });
 
+        // 球體運動
         balls.forEach(ball => {
-            if(!ball.active) return;
-            ball.x += ball.dx * speedMult; ball.y += ball.dy * speedMult;
-            if(ball.x < 10 || ball.x > canvasW - 10) { ball.dx *= -1; playSfx(400); }
-            if(ball.y < 10) { ball.dy *= -1; playSfx(400); }
-            if(ball.y > canvasH - 65 && ball.y < canvasH - 45 && ball.dy > 0) {
-                if(ball.x > paddle.x && ball.x < paddle.x + paddle.w) {
-                    ball.dy *= -1; playSfx(600);
-                    ball.dx = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2) * 6;
+            if (!ball.active) return;
+            const spd = (Date.now() < powerups.fast) ? 1.8 : 1.0;
+            ball.x += ball.dx * spd;
+            ball.y += ball.dy * spd;
+
+            // 牆壁反彈
+            if (ball.x < 10 || ball.x > canvasW - 10) { ball.dx *= -1; playSfx(400); }
+            if (ball.y < 10) { ball.dy *= -1; playSfx(400); }
+
+            // 擋板反彈 (精確矩形碰撞)
+            if (ball.dy > 0 && ball.y + 8 > paddle.y && ball.y < paddle.y + paddle.h) {
+                if (ball.x > paddle.x && ball.x < paddle.x + paddle.w) {
+                    ball.dy *= -1;
+                    ball.y = paddle.y - 8; // 防止卡入擋板
+                    ball.dx = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2) * 7;
+                    playSfx(600);
                 }
             }
-            if(Date.now() < powerups.shield && ball.y > canvasH - 20) { ball.dy *= -1; playSfx(500); }
-            if(ball.y > canvasH + 20) ball.active = false;
 
+            // 護盾反彈
+            if (Date.now() < powerups.shield && ball.y > canvasH - 20) {
+                ball.dy *= -1; playSfx(300);
+            }
+
+            // 掉落檢查
+            if (ball.y > canvasH + 20) ball.active = false;
+
+            // 磚塊碰撞
             bricks.forEach(b => {
-                if(b.status === 1 && ball.x > b.x && ball.x < b.x + (canvasW/6)-10 && ball.y > b.y && ball.y < b.y + 25) {
-                    if(!(Date.now() < powerups.fireball)) ball.dy *= -1;
+                if (ball.x > b.x && ball.x < b.x + b.w && ball.y > b.y && ball.y < b.y + b.h) {
+                    if (Date.now() < powerups.fireball) { /* 穿透不反彈 */ } else { ball.dy *= -1; }
                     b.hits--;
-                    if(b.hits <= 0) {
+                    if (b.hits <= 0) {
                         b.status = 0; score += (b.type === 'BOSS' ? 50 : 10);
                         playSfx(b.type === 'BOSS' ? 200 : 800, 'square');
-                        if(b.type !== 'NORMAL' && b.type !== 'BOMB' && b.type !== 'BOSS') {
-                            const el = document.getElementById('powerup-status');
-                            el.innerText = b.type + " 模式！"; el.style.opacity = 1;
-                            powerups[b.type.toLowerCase()] = Date.now() + 10000;
-                            setTimeout(()=>el.style.opacity=0, 2000);
-                        }
+                        if (b.type !== 'NORMAL' && b.type !== 'BOMB' && b.type !== 'BOSS') activatePowerup(b.type);
                         hitCount++;
-                        if(hitCount % 10 === 0) spawnThreeRows();
-                    } else { playSfx(300, 'square'); }
+                        if (hitCount % 10 === 0) spawnWave();
+                    } else { playSfx(250, 'square'); }
                 }
             });
         });
-        if(balls.filter(b=>b.active).length === 0) endGame("GAME OVER", "球掉光了");
+
+        if (balls.filter(b => b.active).length === 0) endGame("GAME OVER", "球全部失蹤了！");
     }
 
+    // --- 繪圖引擎 ---
     function draw() {
         ctx.save();
-        if(shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
-        ctx.fillStyle = '#050510'; ctx.fillRect(0,0,canvasW,canvasH);
-        if(Date.now() < powerups.shield) { ctx.fillStyle = '#00d2ff33'; ctx.fillRect(0, canvasH-15, canvasW, 15); }
+        if (shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+        
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(0, 0, canvasW, canvasH);
+
+        // 護盾特效
+        if (Date.now() < powerups.shield) {
+            ctx.fillStyle = '#00d2ff33';
+            ctx.fillRect(0, canvasH - 15, canvasW, 15);
+        }
+
+        // 磚塊
         bricks.forEach(b => {
-            if(b.status !== 1) return;
             ctx.fillStyle = b.color;
-            ctx.beginPath(); ctx.roundRect(b.x, b.y, (canvasW/6)-10, 25, 6); ctx.fill();
-            if(b.type !== 'NORMAL') { ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial"; ctx.fillText(b.type === 'BOSS' ? b.hits : '★', b.x + 10, b.y + 18); }
+            ctx.shadowBlur = (b.type !== 'NORMAL') ? 15 : 0;
+            ctx.shadowColor = b.color;
+            ctx.beginPath();
+            ctx.roundRect(b.x, b.y, b.w, b.h, 6);
+            ctx.fill();
+            if (b.type !== 'NORMAL') {
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial';
+                ctx.fillText(b.type === 'BOSS' ? b.hits : '★', b.x + 10, b.y + 17);
+            }
         });
+
+        // 擋板
+        ctx.shadowBlur = 15; ctx.shadowColor = (Date.now() < powerups.long) ? '#0f0' : '#00d2ff';
         ctx.fillStyle = (Date.now() < powerups.long) ? '#0f0' : '#00d2ff';
-        ctx.beginPath(); ctx.roundRect(paddle.x, canvasH-60, paddle.w, paddle.h, 10); ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 10);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // 球
         balls.forEach(ball => {
-            if(!ball.active) return;
+            if (!ball.active) return;
             ctx.fillStyle = (Date.now() < powerups.fireball) ? '#f00' : '#fff';
             ctx.beginPath(); ctx.arc(ball.x, ball.y, 8, 0, Math.PI*2); ctx.fill();
         });
+
         ctx.restore();
-        document.getElementById('scoreVal').innerText = score;
-        if(isPlaying) requestAnimationFrame(draw);
+        scoreEl.textContent = score;
+        if (isPlaying) requestAnimationFrame(draw);
     }
 
     function endGame(t, d) {
         isPlaying = false;
-        document.getElementById('overlay').style.display = 'flex';
+        overlay.style.display = 'flex';
         document.getElementById('m-title').innerText = t;
-        document.getElementById('m-desc').innerText = d + " Score: " + score;
+        document.getElementById('m-desc').innerText = d + " 得分: " + score;
     }
 
     document.getElementById('startBtn').onclick = () => {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        document.getElementById('overlay').style.display = 'none';
-        score = 0; hitCount = 0; bricks = []; balls = [{ x: canvasW/2, y: canvasH-150, dx: 4, dy: -4, active: true }];
-        isPlaying = true; spawnThreeRows(); draw();
-        const loop = () => { if(isPlaying) { update(); setTimeout(loop, 16); } }; loop();
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        overlay.style.display = 'none';
+        score = 0; hitCount = 0; bricks = [];
+        balls = [{ x: canvasW/2, y: paddle.y - 20, dx: 4, dy: -4, active: true }];
+        isPlaying = true;
+        spawnWave();
+        draw();
     };
 
-    const move = (e) => { 
-        let x = e.touches ? e.touches[0].clientX : e.clientX;
-        paddle.x = x - paddle.w/2;
-        if(paddle.x < 0) paddle.x = 0;
-        if(paddle.x > canvasW - paddle.w) paddle.x = canvasW - paddle.w;
+    // 控制適應
+    const updatePaddle = (ex) => {
+        paddle.x = ex - paddle.w / 2;
+        if (paddle.x < 0) paddle.x = 0;
+        if (paddle.x > canvasW - paddle.w) paddle.x = canvasW - paddle.w;
     };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('touchmove', (e)=>{ e.preventDefault(); move(e); }, {passive:false});
+    window.addEventListener('mousemove', e => updatePaddle(e.clientX));
+    window.addEventListener('touchmove', e => {
+        e.preventDefault();
+        updatePaddle(e.touches[0].clientX);
+    }, { passive: false });
+
+    // 每一秒更新一次物理 (避免刷新率影響速度)
+    setInterval(() => { if(isPlaying) update(); }, 16);
+
+})();
 </script>
 </body>
 </html>
