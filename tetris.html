@@ -7,7 +7,23 @@
     <style>
         body { background: #0a0a0a; color: #f1c40f; text-align: center; font-family: "Microsoft JhengHei", sans-serif; margin: 0; overflow: hidden; touch-action: none; }
         
-        #score { font-size: 32px; margin: 10px; text-shadow: 0 0 10px #f1c40f; font-weight: bold; }
+        /* 返回大廳按鈕樣式 */
+        .home-btn {
+            position: absolute;
+            top: 15px; left: 15px;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            font-weight: bold;
+        }
+
+        #score { font-size: 32px; margin: 10px; text-shadow: 0 0 10px #f1c40f; font-weight: bold; margin-top: 50px; /* 讓分給按鈕一點空間 */ }
         
         #game-container { position: relative; display: inline-block; background: #1a1a1a; padding: 10px; border: 2px solid #444; border-radius: 15px; }
         
@@ -16,14 +32,14 @@
         #dock { display: flex; justify-content: space-around; align-items: center; margin-top: 15px; height: 130px; background: rgba(255,255,255,0.05); }
         .piece-canvas { background: transparent; touch-action: none; }
         
-        button { margin-top: 15px; padding: 10px 30px; font-size: 18px; background: #c0392b; color: white; border: none; border-radius: 50px; cursor: pointer; }
+        button.reset-btn { margin-top: 15px; padding: 10px 30px; font-size: 18px; background: #c0392b; color: white; border: none; border-radius: 50px; cursor: pointer; }
         
-        /* 特效文字樣式 (縮小版) */
+        /* 特效文字樣式 */
         .float-text {
             position: absolute;
             top: 45%; left: 50%;
             transform: translate(-50%, -50%) scale(0);
-            font-size: 40px; /* 預設 Combo 字體大小 */
+            font-size: 40px;
             font-weight: 900;
             text-shadow: 2px 2px 0 #000, 0 0 15px rgba(255, 255, 255, 0.5);
             pointer-events: none; z-index: 50;
@@ -35,6 +51,8 @@
     </style>
 </head>
 <body onclick="playBGM()">
+    <a href="index.html" class="home-btn">🏠 回大廳</a>
+
     <div id="score">武林積分: 0</div>
     
     <div id="game-container">
@@ -51,7 +69,7 @@
         <canvas id="piece2" class="piece-canvas" onclick="rotatePiece(2)"></canvas>
     </div>
     
-    <button onclick="resetGame()">♻️ 重整旗鼓</button>
+    <button class="reset-btn" onclick="resetGame()">♻️ 重整旗鼓</button>
     <audio id="bgm" loop><source src="bgm.mp3" type="audio/mpeg"></audio>
 
     <script>
@@ -63,7 +81,6 @@
         let dockPieces = [null, null, null], draggingPiece = null, currentDropPos = null;
         let particles = [];
 
-        // --- 粒子特效 ---
         class Particle {
             constructor(x, y, color) {
                 this.x = x; this.y = y; this.color = color;
@@ -109,12 +126,11 @@
 
         function updateScoreUI() { document.getElementById('score').innerText = '武林積分: ' + score; }
 
-        // --- 特效顯示邏輯 ---
         function showTextEffect(elementId, text) {
             const el = document.getElementById(elementId);
             el.innerText = text;
             el.style.opacity = '1';
-            el.style.transform = 'translate(-50%, -50%) scale(1.2)'; // 縮小彈出倍率 (原本 1.5)
+            el.style.transform = 'translate(-50%, -50%) scale(1.2)';
             setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translate(-50%, -50%) scale(0)'; }, 1000);
         }
 
@@ -209,7 +225,6 @@
             return true;
         }
 
-        // --- 核心：多重消除 + 連擊判定 ---
         function sweep() {
             let rIdx = [], cIdx = [];
             for (let y = 0; y < ROWS; y++) if (arena[y].every(v => v !== 0)) rIdx.push(y);
@@ -228,7 +243,6 @@
                 });
 
                 combo++;
-                
                 if (totalLines >= 2) {
                     let msg = "";
                     if (totalLines === 2) msg = "雙殺！DOUBLE";
@@ -236,20 +250,14 @@
                     else if (totalLines >= 4) msg = "暴走！ULTRA";
                     showTextEffect('multi-text', msg);
                 }
-
-                if (combo > 1) {
-                    showTextEffect('combo-text', "COMBO x" + combo + " 🔥");
-                }
+                if (combo > 1) showTextEffect('combo-text', "COMBO x" + combo + " 🔥");
 
                 let multiBonus = (totalLines > 1) ? (totalLines * totalLines * 50) : 0;
                 let streakBonus = (combo > 1) ? (combo * 50) : 0;
-                
                 score += (totalLines * 100) + multiBonus + streakBonus;
-
             } else {
                 combo = 0;
             }
-            
             updateScoreUI();
         }
 
@@ -279,4 +287,3 @@
     </script>
 </body>
 </html>
-
