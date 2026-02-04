@@ -1,130 +1,239 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>快樂遊戲大廳 🎮</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON ARCADE | 極限遊樂場</title>
     <style>
-        body { 
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white; 
-            text-align: center; 
-            font-family: "Microsoft JhengHei", sans-serif; 
-            margin: 0; 
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-        h1 { 
-            font-size: 40px; 
-            margin-bottom: 40px; 
-            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            letter-spacing: 2px;
-        }
-        .menu-container {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-            width: 80%;
-            max-width: 400px;
-        }
-        .game-card {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 20px;
-            cursor: pointer;
-            transition: transform 0.2s, background 0.2s;
-            text-decoration: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        }
-        .game-card:active {
-            transform: scale(0.95);
-            background: rgba(255, 255, 255, 0.2);
-        }
-        .icon {
-            font-size: 50px;
-            margin-right: 20px;
-            filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
-        }
-        .info {
-            text-align: left;
-        }
-        .game-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 0;
-            color: #f1c40f;
-        }
-        .game-desc {
-            font-size: 14px;
-            color: #ddd;
-            margin-top: 5px;
+        :root {
+            --bg: #050510;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text: #ffffff;
         }
         
-        /* 播放背景音樂的隱藏按鈕 */
-        #bgm-hint {
-            position: absolute;
-            bottom: 20px;
-            font-size: 12px;
-            opacity: 0.6;
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* 動態背景畫布 */
+        #bgCanvas {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        /* 標題區 */
+        header {
+            text-align: center;
+            padding: 40px 20px 20px;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 3rem; margin: 0; font-weight: 900; letter-spacing: 2px;
+            background: linear-gradient(to right, #00d2ff, #ff0055, #ffd700);
+            -webkit-background-clip: text; color: transparent;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+            animation: hue 10s infinite linear;
+        }
+
+        p.subtitle {
+            color: #888; margin-top: 5px; letter-spacing: 1px;
+        }
+
+        /* 遊戲列表容器 */
+        .menu-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            width: 90%;
+            max-width: 800px;
+            padding: 20px;
+            z-index: 10;
+            padding-bottom: 60px;
+        }
+
+        /* === 遊戲卡片樣式 === */
+        .game-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px;
+            text-decoration: none;
+            color: white;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-color: var(--theme);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* 卡片左側發光條 */
+        .game-card::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--theme); box-shadow: 0 0 10px var(--theme);
+        }
+
+        .icon {
+            font-size: 45px;
+            margin-right: 20px;
+            text-shadow: 0 0 15px var(--theme);
+            min-width: 60px; text-align: center;
+        }
+
+        .info { flex: 1; }
+
+        .game-title {
+            font-size: 1.4rem; font-weight: 800; margin-bottom: 5px;
+            color: var(--theme);
+        }
+
+        .game-desc {
+            font-size: 0.9rem; color: #ccc; line-height: 1.4;
+        }
+
+        /* 手機箭頭提示 */
+        .game-card::after {
+            content: '▶'; color: var(--theme); font-size: 20px; margin-left: 10px; opacity: 0.7;
+        }
+
+        footer {
+            margin-top: auto; padding: 20px;
+            color: #555; font-size: 12px; text-align: center;
+        }
+
+        @keyframes hue { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+
+        /* 手機版調整 */
+        @media (max-width: 600px) {
+            h1 { font-size: 2.2rem; }
+            .menu-container { grid-template-columns: 1fr; }
+            .game-card { padding: 15px; }
+            .icon { font-size: 36px; margin-right: 15px; min-width: 50px; }
+            .game-title { font-size: 1.2rem; }
+            .game-desc { font-size: 0.85rem; }
         }
     </style>
 </head>
 <body>
 
-    <h1>🎮 遊戲選單</h1>
+    <canvas id="bgCanvas"></canvas>
+
+    <header>
+        <h1>NEON ARCADE</h1>
+        <p class="subtitle">極限街機遊樂場</p>
+    </header>
 
     <div class="menu-container">
-        <a href="tetris.html" class="game-card">
-            <div class="icon">🧱</div>
+        
+        <a href="tetris.html" class="game-card" style="--theme: #bd00ff;">
+            <div class="icon">🧩</div>
             <div class="info">
                 <div class="game-title">俄羅斯積木</div>
-                <div class="game-desc">武俠風消消樂，連擊超爽快！</div>
+                <div class="game-desc">經典方塊堆疊，連擊消除超爽快！</div>
             </div>
         </a>
 
-        <a href="snake.html" class="game-card">
+        <a href="snake.html" class="game-card" style="--theme: #00ff00;">
             <div class="icon">🐍</div>
             <div class="info">
-                <div class="game-title">霓虹貪食蛇</div>
-                <div class="game-desc">經典玩法，小心別撞到牆壁！</div>
+                <div class="game-title">極限貪食蛇</div>
+                <div class="game-desc">虛擬搖桿操控，全螢幕適配，挑戰長度極限！</div>
             </div>
         </a>
 
-        <a href="breakout.html" class="game-card">
+        <a href="breakout.html" class="game-card" style="--theme: #00d2ff;">
             <div class="icon">🧱</div>
             <div class="info">
                 <div class="game-title">爆破打磚塊</div>
-                <div class="game-desc">多球分裂 + 爆炸特效，超刺激！</div>
+                <div class="game-desc">自動補磚、分裂球與雷射砲台，火力全開！</div>
             </div>
         </a>
 
-        <a href="minesweeper.html" class="game-card">
+        <a href="minesweeper.html" class="game-card" style="--theme: #ff0055;">
             <div class="icon">💣</div>
             <div class="info">
                 <div class="game-title">極限踩地雷</div>
-                <div class="game-desc">絢麗光譜特效 + 自訂規模，挑戰腦力極限！</div>
-            </div>
-       </a>
-       <a href="pacman.html" class="game-card">
-            <div class="icon">👻</div>
-            <div class="info">
-                <div class="game-title">霓虹追逐小東西</div>
-                <div class="game-desc">RWD 地圖生成，滑動操作，吃掉那些幽靈！</div>
+                <div class="game-desc">失敗全圖展開，智能難度選擇，考驗邏輯！</div>
             </div>
         </a>
-        
+
+        <a href="pacman.html" class="game-card" style="--theme: #ffd700;">
+            <div class="icon">👻</div>
+            <div class="info">
+                <div class="game-title">霓虹追逐者</div>
+                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
+            </div>
+        </a>
+
     </div>
 
-    <div id="bgm-hint">❤️ Created for Kids ❤️</div>
+    <footer>Created for Kids ❤️ 無廣告純淨體驗</footer>
 
+    <script>
+        // 背景粒子動畫
+        const canvas = document.getElementById('bgCanvas');
+        const ctx = canvas.getContext('2d');
+        let w, h, particles = [];
+
+        function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class P {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * w; this.y = Math.random() * h;
+                this.vx = (Math.random() - 0.5); this.vy = (Math.random() - 0.5);
+                this.color = `hsla(${Math.random()*360}, 70%, 50%, 0.3)`;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if(this.x<0||this.x>w||this.y<0||this.y>h) this.reset();
+            }
+            draw() {
+                ctx.fillStyle = this.color; ctx.beginPath();
+                ctx.arc(this.x, this.y, 1.5, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        for(let i=0; i<40; i++) particles.push(new P());
+
+        function loop() {
+            ctx.clearRect(0, 0, w, h);
+            // 連線特效
+            for(let i=0; i<particles.length; i++) {
+                let p1 = particles[i]; p1.update(); p1.draw();
+                for(let j=i+1; j<particles.length; j++) {
+                    let p2 = particles[j];
+                    let d = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+                    if(d < 120) {
+                        ctx.strokeStyle = `rgba(255,255,255,${(1-d/120)*0.1})`;
+                        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
 </body>
 </html>
