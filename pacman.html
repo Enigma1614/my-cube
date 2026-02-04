@@ -3,47 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>霓虹小精靈：完美修復版</title>
+    <title>霓虹小精靈：絕對操控版</title>
     <style>
         :root { --bg: #050510; --accent: #ffd700; --wall: #0044ff; }
-        body {
+        html, body {
             background: var(--bg); color: white; margin: 0; 
             font-family: 'Segoe UI', system-ui, sans-serif;
             overflow: hidden; /* 禁止捲動 */
-            touch-action: none; /* 禁止瀏覽器預設手勢 */
+            touch-action: none; /* 關鍵：禁止瀏覽器預設手勢 */
             user-select: none;
-            display: flex; flex-direction: column; height: 100vh;
+            display: flex; flex-direction: column; height: 100%; width: 100%;
         }
 
         /* 頂部導航列 */
         header {
-            padding: 10px 20px; 
+            padding: 0 15px; 
             display: flex; justify-content: space-between; align-items: center;
             background: rgba(0,0,0,0.6); border-bottom: 1px solid rgba(255,255,255,0.1);
-            flex-shrink: 0; z-index: 20; height: 60px; box-sizing: border-box;
+            flex-shrink: 0; z-index: 20; height: 50px; box-sizing: border-box;
         }
-        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-left { display: flex; align-items: center; gap: 10px; }
         .home-btn {
             text-decoration: none; font-size: 20px; color: #fff;
-            background: rgba(255,255,255,0.1); width: 36px; height: 36px;
+            background: rgba(255,255,255,0.1); width: 32px; height: 32px;
             display: flex; align-items: center; justify-content: center;
             border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            transition: 0.2s;
         }
-        .home-btn:active { background: var(--accent); color: #000; }
-        .game-title { font-weight: 800; letter-spacing: 1px; color: var(--accent); text-shadow: 0 0 10px var(--accent); }
-        .score-box { font-size: 20px; font-weight: 900; color: #fff; font-family: monospace; }
+        .score-box { font-size: 18px; font-weight: 900; color: #fff; font-family: monospace; }
 
         /* 遊戲區域 */
         #game-wrapper {
             flex: 1; width: 100%; position: relative;
             display: flex; justify-content: center; align-items: center;
             background: #000;
+            overflow: hidden;
         }
 
         canvas {
             display: block;
-            box-shadow: 0 0 50px rgba(0, 68, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0, 68, 255, 0.2);
         }
 
         /* 覆蓋層 */
@@ -55,21 +53,30 @@
         }
         
         h1 { font-size: 40px; color: var(--accent); text-shadow: 0 0 20px var(--accent); margin: 0 0 20px 0; text-align: center; }
-        p { color: #ccc; margin-bottom: 30px; }
+        p { color: #ccc; margin-bottom: 30px; font-size: 14px; text-align: center; line-height: 1.5; }
         
         button {
-            padding: 15px 50px; font-size: 22px; font-weight: bold;
+            padding: 12px 40px; font-size: 22px; font-weight: bold;
             background: transparent; color: var(--accent);
             border: 2px solid var(--accent); border-radius: 50px;
             cursor: pointer; box-shadow: 0 0 15px var(--accent);
-            transition: 0.2s;
-            pointer-events: auto; /* 強制按鈕可點 */
+            pointer-events: auto;
         }
         button:active { background: var(--accent); color: #000; transform: scale(0.95); }
 
+        /* 滑動回饋指示器 */
+        #gesture-feedback {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px; color: rgba(255, 255, 255, 0.5);
+            pointer-events: none; z-index: 30;
+            opacity: 0; transition: opacity 0.2s;
+            text-shadow: 0 0 20px white;
+        }
+
         .controls-hint {
-            position: absolute; bottom: 20px; width: 100%; text-align: center;
-            color: rgba(255,255,255,0.3); font-size: 14px; pointer-events: none;
+            position: absolute; bottom: 10px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.3); font-size: 12px; pointer-events: none;
         }
     </style>
 </head>
@@ -78,16 +85,17 @@
     <header>
         <div class="header-left">
             <a href="index.html" class="home-btn">🏠</a>
-            <div class="game-title">PAC-NEON</div>
+            <div class="game-title" style="color:var(--accent); font-weight:800;">PAC-NEON</div>
         </div>
         <div class="score-box">SCORE: <span id="scoreVal">0</span></div>
     </header>
 
     <div id="game-wrapper">
         <canvas id="gameCanvas"></canvas>
+        <div id="gesture-feedback"></div>
         <div id="overlay">
             <h1 id="msg-title">NEON ELF</h1>
-            <p>滑動螢幕 或 方向鍵 控制</p>
+            <p>滑動螢幕轉向<br>Swipe to Turn</p>
             <button id="startBtn">START</button>
         </div>
         <div class="controls-hint">SWIPE TO MOVE</div>
@@ -102,8 +110,9 @@
     const msgTitle = document.getElementById('msg-title');
     const startBtn = document.getElementById('startBtn');
     const wrapper = document.getElementById('game-wrapper');
+    const feedback = document.getElementById('gesture-feedback');
 
-    // 地圖設定 (1:牆, 0:豆, 2:大力丸, 9:空地)
+    // 地圖 (1:牆, 0:豆, 2:大力丸, 9:空地)
     const rawMap = [
         [1,1,1,1,1,1,1,1,1,1,1,1,1],
         [1,0,0,0,0,0,1,0,0,0,0,0,1],
@@ -111,7 +120,7 @@
         [1,2,1,1,1,0,1,0,1,1,1,2,1],
         [1,0,0,0,0,0,0,0,0,0,0,0,1],
         [1,0,1,1,0,1,1,1,0,1,1,0,1],
-        [1,0,0,0,0,9,9,9,0,0,0,0,1], // 中間是鬼屋
+        [1,0,0,0,0,9,9,9,0,0,0,0,1], // 鬼屋
         [1,0,1,1,0,1,1,1,0,1,1,0,1],
         [1,0,0,0,0,0,1,0,0,0,0,0,1],
         [1,2,1,1,1,0,1,0,1,1,1,2,1],
@@ -125,15 +134,30 @@
     let COLS = rawMap[0].length;
     let map = [];
     
-    let player = { x: 1, y: 1, pixelX:0, pixelY:0, dir: {x:0, y:0}, nextDir: {x:0, y:0}, speed: 0.15, angle: 0 };
+    // 角色物件結構
+    // x,y: 網格座標 (整數)
+    // offsetX, offsetY: 在格子內的偏移量 (-0.5 ~ 0.5)
+    // 這樣可以精確控制移動，不會穿牆
+    let player = createEntity(1, 1);
     let ghosts = [];
     let particles = [];
     let score = 0;
     let isPlaying = false;
-    let animationId;
     let powerMode = false;
     let powerTimer = 0;
     let audioCtx;
+
+    function createEntity(x, y) {
+        return {
+            x: x, y: y,
+            progress: 0, // 0~1，表示在當前移動方向上的進度
+            dir: {x:0, y:0}, 
+            nextDir: {x:0, y:0}, 
+            speed: 0.1, // 每幀移動的格子比例
+            angle: 0,
+            moving: false
+        };
+    }
 
     // 音效
     function playSound(type) {
@@ -161,31 +185,16 @@
         }
     }
 
-    // 重設大小
     function resize() {
         const maxWidth = wrapper.clientWidth - 10;
         const maxHeight = wrapper.clientHeight - 10;
-        
         const tileW = Math.floor(maxWidth / COLS);
         const tileH = Math.floor(maxHeight / ROWS);
         TILE_SIZE = Math.min(tileW, tileH);
-
-        // 確保偶數，避免模糊
-        if(TILE_SIZE % 2 !== 0) TILE_SIZE--;
+        if(TILE_SIZE % 2 !== 0) TILE_SIZE--; // 偶數修正
 
         canvas.width = COLS * TILE_SIZE;
         canvas.height = ROWS * TILE_SIZE;
-        
-        // 更新像素位置
-        if(player.x) {
-            player.pixelX = player.x * TILE_SIZE + TILE_SIZE/2;
-            player.pixelY = player.y * TILE_SIZE + TILE_SIZE/2;
-        }
-        ghosts.forEach(g => {
-            g.pixelX = g.x * TILE_SIZE + TILE_SIZE/2;
-            g.pixelY = g.y * TILE_SIZE + TILE_SIZE/2;
-        });
-
         if(!isPlaying && map.length > 0) draw();
     }
     window.addEventListener('resize', resize);
@@ -195,25 +204,27 @@
         powerMode = false;
         map = JSON.parse(JSON.stringify(rawMap));
         
-        // 玩家初始
-        player = { 
-            x: 1, y: 1, 
-            pixelX: 1 * TILE_SIZE + TILE_SIZE/2, 
-            pixelY: 1 * TILE_SIZE + TILE_SIZE/2,
-            dir: {x:0, y:0}, nextDir: {x:0, y:0},
-            angle: 0, speed: 0.15
-        };
+        player = createEntity(1, 1);
+        player.speed = 0.15;
 
-        // 鬼魂初始
-        ghosts = [
-            { x: 6, y: 6, color: '#ff0055', dir: {x:0, y:-1}, speed: 0.08, state: 'normal' }, 
-            { x: 5, y: 6, color: '#00ffff', dir: {x:1, y:0}, speed: 0.07, state: 'normal' },  
-            { x: 7, y: 6, color: '#ffaa00', dir: {x:-1, y:0}, speed: 0.06, state: 'normal' }
-        ].map(g => ({
-            ...g,
-            pixelX: g.x * TILE_SIZE + TILE_SIZE/2,
-            pixelY: g.y * TILE_SIZE + TILE_SIZE/2
-        }));
+        // 鬼魂生成
+        const ghostSpecs = [
+            {x:6, y:6, c:'#ff0055', s:0.08}, 
+            {x:5, y:6, c:'#00ffff', s:0.07},
+            {x:7, y:6, c:'#ffaa00', s:0.06}
+        ];
+        
+        ghosts = ghostSpecs.map(g => {
+            let ent = createEntity(g.x, g.y);
+            ent.color = g.c;
+            ent.baseSpeed = g.s;
+            ent.speed = g.s;
+            ent.state = 'normal';
+            // 初始方向向上出門
+            ent.dir = {x:0, y:-1}; 
+            ent.moving = true;
+            return ent;
+        });
 
         particles = [];
         resize(); 
@@ -221,152 +232,158 @@
         animate();
     }
 
-    function spawnParticles(x, y, color) {
-        for(let i=0; i<5; i++) {
-            particles.push({
-                x: x, y: y,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
-                life: 1.0, color: color
-            });
+    // === 核心移動邏輯：步進式 (防止穿牆) ===
+    function updateEntity(ent, isPlayer) {
+        // 1. 如果在移動中，增加進度
+        if (ent.moving) {
+            ent.progress += ent.speed;
+            
+            // 2. 當走完一格 (progress >= 1)
+            if (ent.progress >= 1) {
+                // 正式更新網格座標
+                ent.x += ent.dir.x;
+                ent.y += ent.dir.y;
+                ent.progress = 0; // 重置進度
+                
+                // 到達格子中心，這是改變方向的時機
+                
+                // [玩家邏輯]
+                if (isPlayer) {
+                    // 檢查預約方向是否可行
+                    if (ent.nextDir.x !== 0 || ent.nextDir.y !== 0) {
+                        if (isValidMove(ent.x, ent.y, ent.nextDir)) {
+                            ent.dir = {...ent.nextDir};
+                            ent.nextDir = {x:0, y:0}; // 消耗預約
+                        }
+                    }
+                    // 檢查當前方向是否還能走
+                    if (!isValidMove(ent.x, ent.y, ent.dir)) {
+                        ent.moving = false; // 撞牆停下
+                    }
+                } 
+                // [鬼魂邏輯]
+                else {
+                    handleGhostAI(ent);
+                }
+            }
+        } else {
+            // [玩家靜止時]
+            if (isPlayer) {
+                // 嘗試啟動預約方向
+                if (ent.nextDir.x !== 0 || ent.nextDir.y !== 0) {
+                    if (isValidMove(ent.x, ent.y, ent.nextDir)) {
+                        ent.dir = {...ent.nextDir};
+                        ent.nextDir = {x:0, y:0};
+                        ent.moving = true;
+                    }
+                }
+            }
+        }
+
+        // [特殊情況：反向] 
+        // 如果玩家想往回走，不需要等到格子中心，直接掉頭
+        if (isPlayer && ent.moving) {
+            if (ent.nextDir.x === -ent.dir.x && ent.nextDir.y === -ent.dir.y) {
+                ent.dir = {...ent.nextDir};
+                ent.nextDir = {x:0, y:0};
+                // 座標邏輯反轉：
+                // 如果原本從 (1,1) 往右走到 (2,1) 進度 0.3
+                // 現在變成從 (2,1) 往左走，進度應該是 1 - 0.3 = 0.7
+                ent.x += ent.dir.x * -1; // 把座標先推到目標格
+                ent.y += ent.dir.y * -1;
+                ent.progress = 1 - ent.progress;
+            }
         }
     }
 
-    // === 核心移動邏輯修正 ===
-    function moveEntity(entity, speed) {
-        // 1. 移動像素
-        entity.pixelX += entity.dir.x * (speed * TILE_SIZE);
-        entity.pixelY += entity.dir.y * (speed * TILE_SIZE);
+    function isValidMove(cx, cy, dir) {
+        const nx = cx + dir.x;
+        const ny = cy + dir.y;
+        // 邊界檢查
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
+        // 牆壁檢查
+        return map[ny][nx] !== 1;
+    }
 
-        // 2. 更新網格座標
-        entity.x = (entity.pixelX - TILE_SIZE/2) / TILE_SIZE;
-        entity.y = (entity.pixelY - TILE_SIZE/2) / TILE_SIZE;
+    function handleGhostAI(g) {
+        // 找出所有可行方向
+        const opts = [];
+        const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
+        
+        dirs.forEach(d => {
+            // 不能回頭 (除非死路)
+            if (d.x === -g.dir.x && d.y === -g.dir.y) return;
+            if (isValidMove(g.x, g.y, d)) opts.push(d);
+        });
 
-        // 3. 檢查中心對齊 (用於轉彎判定)
-        // 誤差容許值
-        const threshold = speed * 0.6; 
-        const distToCenterX = Math.abs(entity.x - Math.round(entity.x));
-        const distToCenterY = Math.abs(entity.y - Math.round(entity.y));
+        if (opts.length === 0) {
+            // 死路，只能回頭
+            g.dir.x *= -1; g.dir.y *= -1;
+        } else {
+            // 選擇方向 (這裡用簡單隨機+趨勢)
+            let chosen = opts[Math.floor(Math.random() * opts.length)];
+            
+            // 如果是死掉，往家跑 (6,6)
+            if (g.state === 'dead') {
+                opts.sort((a,b) => {
+                    return Math.hypot((g.x+a.x)-6, (g.y+a.y)-6) - Math.hypot((g.x+b.x)-6, (g.y+b.y)-6);
+                });
+                chosen = opts[0];
+                if (Math.abs(g.x-6)<1 && Math.abs(g.y-6)<1) g.state = 'normal';
+            }
+            // 30% 機率追玩家
+            else if (g.state === 'normal' && Math.random() > 0.7) {
+                opts.sort((a,b) => {
+                    return Math.hypot((g.x+a.x)-player.x, (g.y+a.y)-player.y) - Math.hypot((g.x+b.x)-player.x, (g.y+b.y)-player.y);
+                });
+                chosen = opts[0];
+            }
+            g.dir = chosen;
+        }
+    }
 
-        return (distToCenterX < threshold && distToCenterY < threshold);
+    function getRenderPos(ent) {
+        // 根據網格座標和進度計算實際像素位置
+        const rx = (ent.x + ent.dir.x * ent.progress) * TILE_SIZE + TILE_SIZE/2;
+        const ry = (ent.y + ent.dir.y * ent.progress) * TILE_SIZE + TILE_SIZE/2;
+        return {x: rx, y: ry};
     }
 
     function update() {
         if(!isPlaying) return;
 
-        // --- 玩家移動 ---
-        const isAtCenter = moveEntity(player, player.speed);
-
-        if (isAtCenter) {
-            // 強制校正到中心，防止飄移
-            player.x = Math.round(player.x);
-            player.y = Math.round(player.y);
-            player.pixelX = player.x * TILE_SIZE + TILE_SIZE/2;
-            player.pixelY = player.y * TILE_SIZE + TILE_SIZE/2;
-
-            // 1. 嘗試執行預約轉向
-            if(player.nextDir.x !== 0 || player.nextDir.y !== 0) {
-                if(map[player.y + player.nextDir.y][player.x + player.nextDir.x] !== 1) {
-                    player.dir = {...player.nextDir};
-                    player.nextDir = {x:0, y:0}; // 清空預約
-                }
-            }
-
-            // 2. 檢查目前方向是否撞牆
-            if(map[player.y + player.dir.y][player.x + player.dir.x] === 1) {
-                player.dir = {x:0, y:0}; // 停下
-            }
-        } else {
-            // 如果不在中心，且預約反向 (例如往左走時按右)，允許立即回頭
-            if(player.nextDir.x === -player.dir.x && player.nextDir.y === -player.dir.y) {
-                player.dir = {...player.nextDir};
-                player.nextDir = {x:0, y:0};
-            }
-        }
-
-        // 角度 (繪圖用)
+        updateEntity(player, true);
+        
+        // 角度計算
         if(player.dir.x === 1) player.angle = 0;
         if(player.dir.x === -1) player.angle = Math.PI;
         if(player.dir.y === -1) player.angle = -Math.PI/2;
         if(player.dir.y === 1) player.angle = Math.PI/2;
 
-        // 吃豆子
-        const currCol = Math.round(player.x);
-        const currRow = Math.round(player.y);
-        
-        if(map[currRow][currCol] === 0) {
-            map[currRow][currCol] = 9;
-            score += 10;
-            playSound('eat');
-            checkWin();
-        } else if (map[currRow][currCol] === 2) {
-            map[currRow][currCol] = 9;
-            score += 50;
-            activatePowerMode();
+        // 吃豆子 (只要進入格子中心範圍就算吃)
+        if (player.progress < 0.2) { 
+            const r = player.y; const c = player.x;
+            if(map[r][c] === 0) {
+                map[r][c] = 9; score += 10; playSound('eat'); checkWin();
+            } else if(map[r][c] === 2) {
+                map[r][c] = 9; score += 50; activatePowerMode();
+            }
         }
         scoreEl.innerText = score;
 
-        // --- 鬼魂移動 (修復穿牆) ---
+        // 鬼魂
         ghosts.forEach(g => {
-            const moveSpeed = g.state === 'dead' ? 0.15 : (g.state === 'scared' ? 0.05 : g.speed);
-            const ghostAtCenter = moveEntity(g, moveSpeed);
+            g.speed = (g.state === 'dead') ? 0.2 : (g.state === 'scared' ? 0.05 : g.baseSpeed);
+            updateEntity(g, false);
 
-            if(ghostAtCenter) {
-                // 校正中心
-                g.x = Math.round(g.x);
-                g.y = Math.round(g.y);
-                g.pixelX = g.x * TILE_SIZE + TILE_SIZE/2;
-                g.pixelY = g.y * TILE_SIZE + TILE_SIZE/2;
-
-                // 尋找可用方向
-                let options = [];
-                // 上下左右
-                const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
-                
-                dirs.forEach(d => {
-                    // 不能走牆壁，且不能直接回頭(除非死路)
-                    if(map[g.y + d.y][g.x + d.x] !== 1) {
-                        if(d.x !== -g.dir.x || d.y !== -g.dir.y) {
-                            options.push(d);
-                        }
-                    }
-                });
-
-                if(options.length === 0) {
-                    // 死路，只能回頭
-                    g.dir.x *= -1; g.dir.y *= -1;
-                } else {
-                    // 隨機選擇方向 (簡單AI)
-                    // 如果死掉，傾向回家 (6,6)
-                    if(g.state === 'dead') {
-                        options.sort((a,b) => {
-                            return Math.hypot((g.x+a.x)-6, (g.y+a.y)-6) - Math.hypot((g.x+b.x)-6, (g.y+b.y)-6);
-                        });
-                        g.dir = options[0];
-                        if(Math.abs(g.x-6)<1 && Math.abs(g.y-6)<1) g.state = 'normal';
-                    } else if (g.state === 'scared') {
-                        g.dir = options[Math.floor(Math.random() * options.length)];
-                    } else {
-                        // 30% 機率追蹤玩家
-                        if(Math.random() > 0.7) {
-                            options.sort((a,b) => {
-                                return Math.hypot((g.x+a.x)-player.x, (g.y+a.y)-player.y) - Math.hypot((g.x+b.x)-player.x, (g.y+b.y)-player.y);
-                            });
-                            g.dir = options[0];
-                        } else {
-                            g.dir = options[Math.floor(Math.random() * options.length)];
-                        }
-                    }
-                }
-            }
-
-            // 碰撞
-            const dist = Math.hypot(g.pixelX - player.pixelX, g.pixelY - player.pixelY);
-            if(dist < TILE_SIZE * 0.8) {
-                if(g.state === 'scared') {
-                    g.state = 'dead';
-                    score += 200;
-                    spawnParticles(g.pixelX, g.pixelY, '#fff');
+            // 碰撞檢測 (計算像素距離)
+            const pPos = getRenderPos(player);
+            const gPos = getRenderPos(g);
+            const dist = Math.hypot(pPos.x - gPos.x, pPos.y - gPos.y);
+            
+            if (dist < TILE_SIZE * 0.8) {
+                if (g.state === 'scared') {
+                    g.state = 'dead'; score += 200; spawnParticles(gPos.x, gPos.y, '#fff');
                 } else if (g.state === 'normal') {
                     gameOver();
                 }
@@ -389,24 +406,35 @@
         }
     }
 
+    function spawnParticles(x, y, color) {
+        for(let i=0; i<8; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 1.0, color: color
+            });
+        }
+    }
+
     function activatePowerMode() {
-        powerMode = true;
-        powerTimer = 500;
+        powerMode = true; powerTimer = 500;
         ghosts.forEach(g => {
             if(g.state !== 'dead') {
                 g.state = 'scared';
-                g.dir.x *= -1; g.dir.y *= -1; // 嚇得反跑
+                g.dir.x *= -1; g.dir.y *= -1; // 嚇得反跑 (直接改方向，progress不變)
+                g.progress = 1 - g.progress;
+                g.x += g.dir.x; g.y += g.dir.y;
             }
         });
     }
 
     function checkWin() {
         let hasDots = false;
-        for(let r=0; r<ROWS; r++) {
-            for(let c=0; c<COLS; c++) {
-                if(map[r][c] === 0 || map[r][c] === 2) { hasDots = true; break; }
-            }
-        }
+        for(let r=0; r<ROWS; r++) 
+            for(let c=0; c<COLS; c++) 
+                if(map[r][c]===0 || map[r][c]===2) hasDots=true;
+        
         if(!hasDots) {
             isPlaying = false;
             msgTitle.innerText = "YOU WIN!";
@@ -429,7 +457,6 @@
         ctx.fillStyle = '#050510';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 地圖
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
                 const cell = map[r][c];
@@ -437,23 +464,19 @@
                 const y = r * TILE_SIZE;
 
                 if(cell === 1) {
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = 'rgba(0, 68, 255, 0.5)';
-                    ctx.strokeStyle = '#0044ff';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(x+2, y+2, TILE_SIZE-4, TILE_SIZE-4);
+                    ctx.shadowBlur = 5; ctx.shadowColor = 'rgba(0,68,255,0.5)';
+                    ctx.fillStyle = 'rgba(0, 68, 255, 0.3)';
+                    ctx.strokeStyle = '#0044ff'; ctx.lineWidth = 2;
+                    ctx.fillRect(x+4, y+4, TILE_SIZE-8, TILE_SIZE-8);
+                    ctx.strokeRect(x+4, y+4, TILE_SIZE-8, TILE_SIZE-8);
                     ctx.shadowBlur = 0;
                 } else if (cell === 0) {
                     ctx.fillStyle = '#ffb8ae';
-                    ctx.beginPath();
-                    ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, 3, 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, 3, 0, Math.PI*2); ctx.fill();
                 } else if (cell === 2) {
-                    const pulse = Math.sin(Date.now() / 100) * 2 + 6;
+                    const pulse = Math.sin(Date.now()/100)*2 + 6;
                     ctx.shadowBlur = 10; ctx.shadowColor = '#ffd700'; ctx.fillStyle = '#ffd700';
-                    ctx.beginPath();
-                    ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, pulse, 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, pulse, 0, Math.PI*2); ctx.fill();
                     ctx.shadowBlur = 0;
                 }
             }
@@ -462,12 +485,10 @@
         // 粒子
         ctx.globalCompositeOperation = 'lighter';
         particles.forEach(p => {
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, 2+Math.random()*2, 0, Math.PI*2); ctx.fill();
         });
-        ctx.globalAlpha = 1.0;
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over';
 
         // 鬼魂
         ghosts.forEach(g => {
@@ -475,23 +496,26 @@
             if(g.state === 'scared') color = (powerTimer < 120 && Math.floor(Date.now()/100)%2===0) ? '#fff' : '#0000ff';
             else if (g.state === 'dead') color = 'rgba(255,255,255,0.3)';
 
+            const pos = getRenderPos(g);
             ctx.shadowBlur = 15; ctx.shadowColor = color; ctx.fillStyle = color;
-            const gx = g.pixelX; const gy = g.pixelY; const size = TILE_SIZE * 0.7;
+            const size = TILE_SIZE * 0.7;
             
             ctx.beginPath();
-            ctx.arc(gx, gy - size/4, size/2, Math.PI, 0);
-            ctx.lineTo(gx + size/2, gy + size/2);
-            ctx.lineTo(gx - size/2, gy + size/2);
+            ctx.arc(pos.x, pos.y - size/4, size/2, Math.PI, 0);
+            ctx.lineTo(pos.x + size/2, pos.y + size/2);
+            ctx.lineTo(pos.x - size/2, pos.y + size/2);
             ctx.fill();
         });
 
         // 玩家
+        const pPos = getRenderPos(player);
         ctx.shadowBlur = 20; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffff00';
-        const mouthOpen = Math.abs(Math.sin(Date.now() / 100)) * 0.25 * Math.PI;
+        const mouthOpen = Math.abs(Math.sin(Date.now() / 80)) * 0.25 * Math.PI;
+        
         ctx.beginPath();
-        ctx.moveTo(player.pixelX, player.pixelY);
-        ctx.arc(player.pixelX, player.pixelY, TILE_SIZE/2 - 2, player.angle + mouthOpen, player.angle + 2*Math.PI - mouthOpen);
-        ctx.lineTo(player.pixelX, player.pixelY);
+        ctx.moveTo(pPos.x, pPos.y);
+        ctx.arc(pPos.x, pPos.y, TILE_SIZE/2 - 2, player.angle + mouthOpen, player.angle + 2*Math.PI - mouthOpen);
+        ctx.lineTo(pPos.x, pPos.y);
         ctx.fill();
         ctx.shadowBlur = 0;
     }
@@ -509,45 +533,53 @@
         initGame();
     };
 
-    // --- 關鍵修正：全螢幕觸控滑動 ---
-    let touchStartX = 0;
-    let touchStartY = 0;
+    // === 滑動與輸入控制 (Window 層級綁定) ===
+    let touchStartX = 0, touchStartY = 0;
 
-    // 將事件綁定到 window，確保滑動哪裡都有效
+    // 顯示箭頭回饋
+    function showFeedback(icon) {
+        feedback.innerText = icon;
+        feedback.style.opacity = 1;
+        setTimeout(() => feedback.style.opacity = 0, 300);
+    }
+
     window.addEventListener('touchstart', e => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
-        // 如果點在按鈕上，不阻止預設行為
+        // 如果不是按鈕，則防止默認 (如縮放)
         if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-            // 這裡不 preventDefault，否則按鈕可能按不到，
-            // 而是由 CSS touch-action: none 控制
+            // e.preventDefault(); // 視情況開啟
         }
     }, {passive: false});
 
+    window.addEventListener('touchmove', e => {
+        // 強制禁止捲動
+        e.preventDefault();
+    }, {passive: false});
+
     window.addEventListener('touchend', e => {
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
         
-        const dx = touchEndX - touchStartX;
-        const dy = touchEndY - touchStartY;
-        
-        // 增加滑動門檻值，避免誤觸
-        if(Math.abs(dx) > Math.abs(dy)) {
-            if(Math.abs(dx) > 30) player.nextDir = {x: dx > 0 ? 1 : -1, y: 0};
-        } else {
-            if(Math.abs(dy) > 30) player.nextDir = {x: 0, y: dy > 0 ? 1 : -1};
+        if(Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+            if(Math.abs(dx) > Math.abs(dy)) {
+                if(dx > 0) { player.nextDir = {x:1, y:0}; showFeedback('➡️'); }
+                else { player.nextDir = {x:-1, y:0}; showFeedback('⬅️'); }
+            } else {
+                if(dy > 0) { player.nextDir = {x:0, y:1}; showFeedback('⬇️'); }
+                else { player.nextDir = {x:0, y:-1}; showFeedback('⬆️'); }
+            }
         }
     });
 
     window.addEventListener('keydown', e => {
-        if(['ArrowUp','w'].includes(e.key)) player.nextDir = {x:0, y:-1};
-        if(['ArrowDown','s'].includes(e.key)) player.nextDir = {x:0, y:1};
-        if(['ArrowLeft','a'].includes(e.key)) player.nextDir = {x:-1, y:0};
-        if(['ArrowRight','d'].includes(e.key)) player.nextDir = {x:1, y:0};
+        if(e.key === 'ArrowUp') { player.nextDir = {x:0, y:-1}; showFeedback('⬆️'); }
+        if(e.key === 'ArrowDown') { player.nextDir = {x:0, y:1}; showFeedback('⬇️'); }
+        if(e.key === 'ArrowLeft') { player.nextDir = {x:-1, y:0}; showFeedback('⬅️'); }
+        if(e.key === 'ArrowRight') { player.nextDir = {x:1, y:0}; showFeedback('➡️'); }
         if(e.code === 'Space' && overlay.style.display !== 'none') startBtn.click();
     });
 
-    // 初始執行
     resize();
     draw();
 
