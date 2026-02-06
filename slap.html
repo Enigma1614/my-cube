@@ -16,21 +16,17 @@
             touch-action: manipulation;
         }
 
-        /* 頂部列：返回大廳 + 分數 */
+        /* 頂部列：返回大廳 */
         header {
             padding: 0 15px;
             height: 50px;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
+            gap: 10px;
             background: rgba(0,0,0,0.15);
             border-bottom: 1px solid rgba(255,255,255,0.4);
             color: #fff;
-        }
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
         .home-btn {
             text-decoration: none;
@@ -49,11 +45,6 @@
             font-weight: 800;
             text-shadow: 0 0 8px rgba(0,0,0,0.4);
         }
-        .score-box {
-            font-size: 16px;
-            font-weight: 900;
-            text-shadow: 0 0 6px rgba(0,0,0,0.4);
-        }
 
         /* 主區域：置中 canvas */
         .game-area {
@@ -63,10 +54,6 @@
             align-items: center;
             justify-content: center;
             padding: 10px 0 20px;
-        }
-
-        .score-label {
-            display: none; /* 分數顯示已放到 header */
         }
 
         canvas { 
@@ -82,7 +69,6 @@
             header { height: 46px; padding: 0 10px; }
             .home-btn { width: 30px; height: 30px; font-size: 18px; }
             .game-title { font-size: 14px; }
-            .score-box { font-size: 14px; }
             canvas { border-width: 3px; border-radius: 15px; }
         }
     </style>
@@ -90,12 +76,8 @@
 <body>
 
     <header>
-        <div class="header-left">
-            <!-- 返回大廳按鈕：連回你的 NEON ARCADE 首頁 -->
-            <a href="index.html" class="home-btn">🏠</a>
-            <div class="game-title">巴掌對決</div>
-        </div>
-        <div class="score-box">巴掌次數: <span id="score">0</span></div>
+        <a href="index.html" class="home-btn">🏠</a>
+        <div class="game-title">巴掌對決</div>
     </header>
 
     <div class="game-area">
@@ -105,23 +87,27 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
 
-        // RWD 調整畫布大小
+        // RWD 調整畫布大小，順便更新臉的位置與大小
         function resizeCanvas() {
             const maxWidth = window.innerWidth - 40;
             const maxHeight = window.innerHeight - 120; // 扣掉 header & padding
             const size = Math.min(maxWidth, maxHeight);
             canvas.width = Math.min(size, 500);
             canvas.height = Math.min(canvas.width * 0.8, 400);
+
+            face.r = canvas.width * 0.28;
+            face.x = canvas.width / 2;
+            face.y = canvas.height / 2 + 10;
         }
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
 
         // 遊戲狀態
         let score = 0;
-        let face = { x: canvas.width / 2, y: canvas.height / 2, r: 80, shake: 0, red: 0, slapAnim: 0 };
+        let face = { x: 0, y: 0, r: 80, shake: 0, red: 0, slapAnim: 0 };
         let particles = [];
+
+        resizeCanvas();
 
         function createParticles(x, y) {
             for (let i = 0; i < 10; i++) {
@@ -138,7 +124,7 @@
         function update() {
             face.shake *= 0.9;
             face.red *= 0.95;
-            face.slapAnim *= 0.95;
+            face.slapAnim *= 0.9;
 
             particles = particles.filter(p => {
                 p.x += p.vx;
@@ -152,38 +138,80 @@
         function drawFace() {
             ctx.save();
             ctx.translate(
-                face.x + face.shake * (Math.random() - 0.5) * 10, 
-                face.y + face.shake * (Math.random() - 0.5) * 10
+                face.x + face.shake * (Math.random() - 0.5) * 12, 
+                face.y + face.shake * (Math.random() - 0.5) * 12
             );
 
-            // 臉
-            ctx.fillStyle = `hsl(40, 60%, ${55 + face.red}%)`;
+            // 依分數計算誇張度（0~1，非線性成長）
+            // 每 100 下一個大階段，階段越高表情越誇張
+            const step = Math.min(Math.floor(score / 100), 3);   // 0,1,2,3 共四級
+            const within = score % 100;                          // 0~99
+            const baseStepIntensity = step / 3;                  // 0, 0.33, 0.66, 1
+            
+            // 這一「百下」內的漸進變化（0~1，稍微帶一點曲線感）
+            const progress = within / 100;
+            const micro = progress * progress;                   // 前面慢、後面快一點
+            
+            // 最終誇張度 0~1
+            const intensity = Math.min(baseStepIntensity + micro * (1/3), 1);
+
+
+            // 臉底色 + 紅潤
+            const baseLight = 50 + face.red + intensity * 10;
+            ctx.fillStyle = `hsl(40, 70%, ${baseLight}%)`;
             ctx.beginPath();
             ctx.arc(0, 0, face.r, 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowColor = 'rgba(0,0,0,0.3)';
-            ctx.shadowBlur = 20;
-            ctx.fill();
-            ctx.shadowBlur = 0;
 
-            // 眼睛
-            const eyeY = -20 + face.slapAnim * 10;
+            // 腮紅
+            ctx.fillStyle = `rgba(255, 99, 132, ${0.4 + intensity * 0.3})`;
+            ctx.beginPath();
+            ctx.ellipse(-face.r * 0.45, face.r * 0.1, face.r * 0.25, face.r * 0.15, 0, 0, Math.PI * 2);
+            ctx.ellipse( face.r * 0.45, face.r * 0.1, face.r * 0.25, face.r * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const eyeY = -face.r * 0.28 + face.slapAnim * 6;
+            const blink = face.slapAnim * (0.4 + intensity * 0.6);
+            const eyeOpen = face.r * (0.18 - blink * 0.12);
+
+            // 眼白
             ctx.fillStyle = '#fff';
             ctx.beginPath();
-            ctx.arc(-25, eyeY, 15, 0, Math.PI * 2);
-            ctx.arc(25, eyeY, 15, 0, Math.PI * 2);
+            ctx.ellipse(-face.r * 0.3, eyeY, face.r * 0.22, Math.max(eyeOpen, 2), 0, 0, Math.PI * 2);
+            ctx.ellipse( face.r * 0.3, eyeY, face.r * 0.22, Math.max(eyeOpen, 2), 0, 0, Math.PI * 2);
             ctx.fill();
 
+            // 瞳孔
             ctx.fillStyle = '#000';
+            const pupilBase = face.r * 0.08;
+            const pupilSize = Math.max(pupilBase - blink * (pupilBase * 0.7), 2);
             ctx.beginPath();
-            ctx.arc(-25 + face.slapAnim * 5, eyeY, 6, 0, Math.PI * 2);
-            ctx.arc(25 - face.slapAnim * 5, eyeY, 6, 0, Math.PI * 2);
+            ctx.arc(-face.r * 0.3 + face.slapAnim * (5 + intensity * 8), eyeY, pupilSize, 0, Math.PI * 2);
+            ctx.arc( face.r * 0.3 - face.slapAnim * (5 + intensity * 8), eyeY, pupilSize, 0, Math.PI * 2);
             ctx.fill();
 
-            // 嘴巴
-            ctx.fillStyle = '#ff6b6b';
+            // 眉毛：分數越高越上挑
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            const browOffset = 15 + intensity * 10;
             ctx.beginPath();
-            ctx.arc(0, 20 + face.slapAnim * 15, 25, 0, Math.PI);
+            ctx.moveTo(-face.r * 0.42, eyeY - browOffset - blink * 4);
+            ctx.lineTo(-face.r * 0.18, eyeY - (browOffset - 4) - blink * 6);
+            ctx.moveTo( face.r * 0.42, eyeY - browOffset - blink * 4);
+            ctx.lineTo( face.r * 0.18, eyeY - (browOffset - 4) - blink * 6);
+            ctx.stroke();
+
+            // 嘴巴：分數越高、被打時越大
+            ctx.fillStyle = '#ff6b6b';
+            const mouthOpen = face.r * (0.18 + face.slapAnim * 0.3 + intensity * 0.15);
+            ctx.beginPath();
+            ctx.ellipse(
+                0, 
+                face.r * (0.25 + face.slapAnim * 0.15),
+                face.r * 0.2 + intensity * face.r * 0.1,
+                mouthOpen,
+                0, 0, Math.PI * 2
+            );
             ctx.fill();
 
             ctx.restore();
@@ -214,13 +242,25 @@
                 ctx.fill();
             }
 
+            // 大號分數顯示：在臉上方區塊外
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `${Math.min(canvas.width / 8, 60)}px Impact, Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 8;
+            ctx.fillText(`X ${score}`, canvas.width / 2, face.y - face.r - 10);
+            ctx.shadowBlur = 0;
+
             drawFace();
             drawParticles();
 
+            // 提示文字
             ctx.fillStyle = '#e17055';
-            ctx.font = `${Math.min(canvas.width / 15, 36)}px Arial`;
+            ctx.font = `${Math.min(canvas.width / 15, 32)}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText('啪！用力打我！', canvas.width / 2, 50);
+            ctx.textBaseline = 'top';
+            ctx.fillText('啪！用力打我！', canvas.width / 2, 10);
         }
 
         function gameLoop() {
@@ -238,9 +278,8 @@
             const dy = y - face.y;
             if (Math.sqrt(dx*dx + dy*dy) < face.r * 1.2) {
                 score++;
-                scoreEl.textContent = score;
-                face.shake = 1;
-                face.red = 30;
+                face.shake = 1.2;
+                face.red = 40;
                 face.slapAnim = 1;
                 createParticles(x, y);
 
