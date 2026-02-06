@@ -35,7 +35,7 @@
         /* 標題區 */
         header {
             text-align: center;
-            padding: 40px 20px 20px;
+            padding: 40px 20px 10px;
             z-index: 10;
         }
 
@@ -51,6 +51,42 @@
             color: #888; margin-top: 5px; letter-spacing: 1px;
         }
 
+        /* 分類按鈕列 */
+        .category-bar {
+            margin-top: 15px;
+            display: inline-flex;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(10px);
+        }
+        .cat-btn {
+            border: none;
+            background: transparent;
+            color: #aaa;
+            font-size: 0.8rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+        }
+        .cat-btn.active {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
+        /* 區塊標題 */
+        .menu-section-title {
+            width: 90%;
+            max-width: 800px;
+            margin-top: 20px;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #777;
+        }
+
         /* 遊戲列表容器 */
         .menu-container {
             display: grid;
@@ -58,14 +94,13 @@
             gap: 20px;
             width: 90%;
             max-width: 800px;
-            padding: 20px;
+            padding: 10px 0 10px;
             z-index: 10;
-            padding-bottom: 60px;
         }
 
         /* === 遊戲卡片樣式 === */
         .game-card {
-            background: var(--card-bg);
+            background: radial-gradient(circle at top left, rgba(255,255,255,0.12), rgba(255,255,255,0.02));
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 16px;
             padding: 20px;
@@ -110,6 +145,28 @@
             font-size: 0.9rem; color: #ccc; line-height: 1.4;
         }
 
+        /* 難度＋標籤 meta 區 */
+        .meta {
+            margin-top: 6px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #aaa;
+        }
+        .difficulty {
+            font-size: 0.9rem;
+        }
+        .difficulty.easy { color: #4cd964; }    /* 綠：簡單 */
+        .difficulty.normal { color: #ffd700; }  /* 黃：普通 */
+        .difficulty.hard { color: #ff3b30; }    /* 紅：困難 */
+        .tag {
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(0,0,0,0.3);
+        }
+
         /* 手機箭頭提示 */
         .game-card::after {
             content: '▶'; color: var(--theme); font-size: 20px; margin-left: 10px; opacity: 0.7;
@@ -140,55 +197,127 @@
     <header>
         <h1>NEON ARCADE</h1>
         <p class="subtitle">極限街機遊樂場</p>
+
+        <!-- 分類按鈕列 -->
+        <div class="category-bar">
+            <button class="cat-btn active" data-cat="all">全部</button>
+            <button class="cat-btn" data-cat="classic">經典</button>
+            <button class="cat-btn" data-cat="kids">兒童</button>
+            <button class="cat-btn" data-cat="brain">動腦</button>
+        </div>
     </header>
 
-    <div class="menu-container">
+    <!-- 推薦遊戲區 -->
+    <div class="menu-section-title">推薦遊戲</div>
+    <div class="menu-container" id="featured-list">
         
-        <a href="tetris.html" class="game-card" style="--theme: #bd00ff;">
-            <div class="icon">🧩</div>
-            <div class="info">
-                <div class="game-title">俄羅斯積木</div>
-                <div class="game-desc">經典方塊堆疊，連擊消除超爽快！</div>
-            </div>
-        </a>
-
-        <a href="snake.html" class="game-card" style="--theme: #00ff00;">
-            <div class="icon">🐍</div>
-            <div class="info">
-                <div class="game-title">極限貪食蛇</div>
-                <div class="game-desc">虛擬搖桿操控，全螢幕適配，挑戰長度極限！</div>
-            </div>
-        </a>
-
-        <a href="breakout.html" class="game-card" style="--theme: #00d2ff;">
-            <div class="icon">🧱</div>
-            <div class="info">
-                <div class="game-title">爆破打磚塊</div>
-                <div class="game-desc">自動補磚、分裂球與雷射砲台，火力全開！</div>
-            </div>
-        </a>
-
-        <a href="minesweeper.html" class="game-card" style="--theme: #ff0055;">
-            <div class="icon">💣</div>
-            <div class="info">
-                <div class="game-title">極限踩地雷</div>
-                <div class="game-desc">失敗全圖展開，智能難度選擇，考驗邏輯！</div>
-            </div>
-        </a>
-
-        <a href="pacman.html" class="game-card" style="--theme: #ffd700;">
-            <div class="icon">👻</div>
-            <div class="info">
-                <div class="game-title">霓虹追逐者</div>
-                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
-            </div>
-        </a>
-
-        <a href="slap.html" class="game-card" style="--theme: #ffd700;">
+        <a href="slap.html" class="game-card" style="--theme: #ffd700;" data-cat="kids">
             <div class="icon">👋💥</div>
             <div class="info">
                 <div class="game-title">巴掌對決</div>
                 <div class="game-desc">打臉解壓壓！搖晃紅腫動畫，玩到笑不停！</div>
+                <div class="meta">
+                    <span class="difficulty easy">●</span>
+                    <span class="tag">兒童</span>
+                    <span class="tag">反應</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="pacman.html" class="game-card" style="--theme: #ffd700;" data-cat="classic kids">
+            <div class="icon">👻</div>
+            <div class="info">
+                <div class="game-title">霓虹追逐者</div>
+                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
+                <div class="meta">
+                    <span class="difficulty easy">●●</span>
+                    <span class="tag">街機</span>
+                    <span class="tag">迷宮</span>
+                </div>
+            </div>
+        </a>
+
+    </div>
+
+    <!-- 全部遊戲區 -->
+    <div class="menu-section-title">全部遊戲</div>
+    <div class="menu-container" id="all-list">
+        
+        <a href="tetris.html" class="game-card" style="--theme: #bd00ff;" data-cat="classic brain">
+            <div class="icon">🧩</div>
+            <div class="info">
+                <div class="game-title">俄羅斯積木</div>
+                <div class="game-desc">經典方塊堆疊，連擊消除超爽快！</div>
+                <div class="meta">
+                    <span class="difficulty normal">●●</span>
+                    <span class="tag">經典</span>
+                    <span class="tag">空間感</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="snake.html" class="game-card" style="--theme: #00ff00;" data-cat="classic kids">
+            <div class="icon">🐍</div>
+            <div class="info">
+                <div class="game-title">極限貪食蛇</div>
+                <div class="game-desc">虛擬搖桿操控，全螢幕適配，挑戰長度極限！</div>
+                <div class="meta">
+                    <span class="difficulty normal">●●</span>
+                    <span class="tag">反應</span>
+                    <span class="tag">街機</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="breakout.html" class="game-card" style="--theme: #00d2ff;" data-cat="classic kids">
+            <div class="icon">🧱</div>
+            <div class="info">
+                <div class="game-title">爆破打磚塊</div>
+                <div class="game-desc">自動補磚、分裂球與雷射砲台，火力全開！</div>
+                <div class="meta">
+                    <span class="difficulty normal">●●</span>
+                    <span class="tag">街機</span>
+                    <span class="tag">反應</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="minesweeper.html" class="game-card" style="--theme: #ff0055;" data-cat="brain">
+            <div class="icon">💣</div>
+            <div class="info">
+                <div class="game-title">極限踩地雷</div>
+                <div class="game-desc">失敗全圖展開，智能難度選擇，考驗邏輯！</div>
+                <div class="meta">
+                    <span class="difficulty hard">●●●</span>
+                    <span class="tag">動腦</span>
+                    <span class="tag">邏輯</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="pacman.html" class="game-card" style="--theme: #ffd700;" data-cat="classic kids">
+            <div class="icon">👻</div>
+            <div class="info">
+                <div class="game-title">霓虹追逐者</div>
+                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
+                <div class="meta">
+                    <span class="difficulty easy">●●</span>
+                    <span class="tag">街機</span>
+                    <span class="tag">迷宮</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="slap.html" class="game-card" style="--theme: #ffd700;" data-cat="kids">
+            <div class="icon">👋💥</div>
+            <div class="info">
+                <div class="game-title">巴掌對決</div>
+                <div class="game-desc">打臉解壓壓！搖晃紅腫動畫，玩到笑不停！</div>
+                <div class="meta">
+                    <span class="difficulty easy">●</span>
+                    <span class="tag">兒童</span>
+                    <span class="tag">反應</span>
+                </div>
             </div>
         </a>
 
@@ -227,7 +356,6 @@
 
         function loop() {
             ctx.clearRect(0, 0, w, h);
-            // 連線特效
             for(let i=0; i<particles.length; i++) {
                 let p1 = particles[i]; p1.update(); p1.draw();
                 for(let j=i+1; j<particles.length; j++) {
@@ -242,6 +370,30 @@
             requestAnimationFrame(loop);
         }
         loop();
+
+        // 分類過濾邏輯 (全部 / 經典 / 兒童 / 動腦)
+        const catButtons = document.querySelectorAll('.cat-btn');
+        const allCards = document.querySelectorAll('.game-card');
+
+        catButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cat = btn.dataset.cat;  // all / classic / kids / brain
+
+                // 切換 active 樣式
+                catButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // 顯示 / 隱藏卡片
+                allCards.forEach(card => {
+                    const cardCats = (card.dataset.cat || '').split(' ');
+                    if(cat === 'all') {
+                        card.style.display = '';
+                    } else {
+                        card.style.display = cardCats.includes(cat) ? '' : 'none';
+                    }
+                });
+            });
+        });
     </script>
 </body>
 </html>
