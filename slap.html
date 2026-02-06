@@ -141,13 +141,15 @@
             face.y + face.shake * (Math.random() - 0.5) * 12
         );
 
-        // 每 100 下一個大階段，階段越高表情越誇張
-        const step = Math.min(Math.floor(score / 100), 3);   // 0~3 級
-        const within = score % 100;                          // 0~99
-        const baseStepIntensity = step / 3;                  // 0, 0.33, 0.66, 1
-        const progress = within / 100;
-        const micro = progress * progress;
-        const intensity = Math.min(baseStepIntensity + micro * (1/3), 1);
+        // 每 30 下一個大階段，階段越高表情越誇張
+const STEP_SIZE = 30;                                // ★ 想再調整只改這個即可
+const step = Math.min(Math.floor(score / STEP_SIZE), 3);
+const within = score % STEP_SIZE;
+const baseStepIntensity = step / 3;
+const progress = within / STEP_SIZE;
+const micro = progress * progress;
+const intensity = Math.min(baseStepIntensity + micro * (1/3), 1);
+
 
         // 臉底色 + 紅潤
         const baseLight = 50 + face.red + intensity * 10;
@@ -301,3 +303,4 @@
 
 </body>
 </html>
+
