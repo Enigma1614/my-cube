@@ -60,6 +60,8 @@
             border-radius: 999px;
             background: rgba(255,255,255,0.04);
             backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+            justify-content: center;
         }
         .cat-btn {
             border: none;
@@ -69,22 +71,27 @@
             padding: 6px 12px;
             border-radius: 999px;
             cursor: pointer;
+            transition: 0.2s;
         }
+        .cat-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
         .cat-btn.active {
-            background: rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.15);
             color: #fff;
+            font-weight: bold;
         }
 
         /* 區塊標題 */
         .menu-section-title {
             width: 90%;
             max-width: 800px;
-            margin-top: 20px;
-            margin-bottom: 5px;
+            margin-top: 25px;
+            margin-bottom: 10px;
             font-size: 0.95rem;
             letter-spacing: 2px;
             text-transform: uppercase;
             color: #777;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 5px;
         }
 
         /* 遊戲列表容器 */
@@ -94,7 +101,7 @@
             gap: 20px;
             width: 90%;
             max-width: 800px;
-            padding: 10px 0 10px;
+            padding: 10px 0 30px;
             z-index: 10;
         }
 
@@ -147,33 +154,36 @@
 
         /* 難度＋標籤 meta 區 */
         .meta {
-            margin-top: 6px;
+            margin-top: 8px;
             font-size: 0.75rem;
             display: flex;
             align-items: center;
             gap: 6px;
             color: #aaa;
+            flex-wrap: wrap;
         }
         .difficulty {
             font-size: 0.9rem;
+            margin-right: 5px;
         }
-        .difficulty.easy { color: #4cd964; }    /* 綠：簡單 */
-        .difficulty.normal { color: #ffd700; }  /* 黃：普通 */
-        .difficulty.hard { color: #ff3b30; }    /* 紅：困難 */
+        .difficulty.easy { color: #4cd964; }    /* 綠 */
+        .difficulty.normal { color: #ffd700; }  /* 黃 */
+        .difficulty.hard { color: #ff3b30; }    /* 紅 */
+        
         .tag {
-            padding: 2px 6px;
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.18);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.15);
             background: rgba(0,0,0,0.3);
         }
 
         /* 手機箭頭提示 */
         .game-card::after {
-            content: '▶'; color: var(--theme); font-size: 20px; margin-left: 10px; opacity: 0.7;
+            content: '▶'; color: var(--theme); font-size: 20px; margin-left: 10px; opacity: 0.5;
         }
 
         footer {
-            margin-top: auto; padding: 20px;
+            margin-top: auto; padding: 30px;
             color: #555; font-size: 12px; text-align: center;
         }
 
@@ -200,24 +210,24 @@
 
         <div class="category-bar">
             <button class="cat-btn active" data-cat="all">全部</button>
-            <button class="cat-btn" data-cat="classic">經典</button>
-            <button class="cat-btn" data-cat="kids">兒童</button>
-            <button class="cat-btn" data-cat="brain">動腦</button>
+            <button class="cat-btn" data-cat="classic">經典街機</button>
+            <button class="cat-btn" data-cat="kids">兒童專區</button>
+            <button class="cat-btn" data-cat="brain">動腦益智</button>
         </div>
     </header>
 
-    <div class="menu-section-title">推薦遊戲</div>
+    <div class="menu-section-title">本週推薦 🔥</div>
     <div class="menu-container" id="featured-list">
         
-        <a href="slap.html" class="game-card" style="--theme: #ffd700;" data-cat="kids">
-            <div class="icon">👋💥</div>
+        <a href="skyace.html" class="game-card" style="--theme: #4a90e2;" data-cat="classic">
+            <div class="icon">🛩️</div>
             <div class="info">
-                <div class="game-title">巴掌對決</div>
-                <div class="game-desc">打臉解壓壓！搖晃紅腫動畫，玩到笑不停！</div>
+                <div class="game-title">雷電 1945</div>
+                <div class="game-desc">經典像素空戰！閃避彈幕，吃道具升級雙排火力！</div>
                 <div class="meta">
-                    <span class="difficulty easy">●</span>
-                    <span class="tag">兒童</span>
-                    <span class="tag">反應</span>
+                    <span class="difficulty hard">●●●</span>
+                    <span class="tag">射擊</span>
+                    <span class="tag">彈幕</span>
                 </div>
             </div>
         </a>
@@ -225,8 +235,8 @@
         <a href="piano.html" class="game-card" style="--theme: #00ffff;" data-cat="classic kids">
             <div class="icon">🎹</div>
             <div class="info">
-                <div class="game-title">霓虹鋼琴</div>
-                <div class="game-desc">跟隨節奏點擊落下的黑塊，體驗指尖音樂盛宴！</div>
+                <div class="game-title">霓虹鋼琴 MAX</div>
+                <div class="game-desc">極限反應！跟隨節奏點擊方塊，Insane 模式挑戰手速！</div>
                 <div class="meta">
                     <span class="difficulty normal">●●</span>
                     <span class="tag">節奏</span>
@@ -237,18 +247,44 @@
 
     </div>
 
-    <div class="menu-section-title">全部遊戲</div>
+    <div class="menu-section-title">遊戲庫 🎮</div>
     <div class="menu-container" id="all-list">
         
+        <a href="skyace.html" class="game-card" style="--theme: #4a90e2;" data-cat="classic">
+            <div class="icon">🛩️</div>
+            <div class="info">
+                <div class="game-title">雷電 1945</div>
+                <div class="game-desc">經典像素空戰！閃避彈幕，吃道具升級雙排火力！</div>
+                <div class="meta">
+                    <span class="difficulty hard">●●●</span>
+                    <span class="tag">射擊</span>
+                    <span class="tag">街機</span>
+                </div>
+            </div>
+        </a>
+
         <a href="piano.html" class="game-card" style="--theme: #00ffff;" data-cat="classic kids">
             <div class="icon">🎹</div>
             <div class="info">
                 <div class="game-title">霓虹鋼琴</div>
-                <div class="game-desc">跟隨節奏點擊落下的黑塊，體驗指尖音樂盛宴！</div>
+                <div class="game-desc">點擊爆破版！支援多點觸控，手感極佳。</div>
                 <div class="meta">
                     <span class="difficulty normal">●●</span>
                     <span class="tag">節奏</span>
                     <span class="tag">音樂</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="slap.html" class="game-card" style="--theme: #ffd700;" data-cat="kids">
+            <div class="icon">👋</div>
+            <div class="info">
+                <div class="game-title">巴掌大師</div>
+                <div class="game-desc">超舒壓打臉遊戲！啪啪啪音效超真實！</div>
+                <div class="meta">
+                    <span class="difficulty easy">●</span>
+                    <span class="tag">兒童</span>
+                    <span class="tag">解壓</span>
                 </div>
             </div>
         </a>
@@ -261,7 +297,7 @@
                 <div class="meta">
                     <span class="difficulty normal">●●</span>
                     <span class="tag">經典</span>
-                    <span class="tag">空間感</span>
+                    <span class="tag">益智</span>
                 </div>
             </div>
         </a>
@@ -309,7 +345,7 @@
             <div class="icon">👻</div>
             <div class="info">
                 <div class="game-title">霓虹追逐者</div>
-                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
+                <div class="game-desc">十字鍵操控，吃掉所有豆子，小心幽靈！</div>
                 <div class="meta">
                     <span class="difficulty easy">●●</span>
                     <span class="tag">街機</span>
@@ -318,22 +354,9 @@
             </div>
         </a>
 
-        <a href="slap.html" class="game-card" style="--theme: #ffd700;" data-cat="kids">
-            <div class="icon">👋💥</div>
-            <div class="info">
-                <div class="game-title">巴掌對決</div>
-                <div class="game-desc">打臉解壓壓！搖晃紅腫動畫，玩到笑不停！</div>
-                <div class="meta">
-                    <span class="difficulty easy">●</span>
-                    <span class="tag">兒童</span>
-                    <span class="tag">反應</span>
-                </div>
-            </div>
-        </a>
-
     </div>
 
-    <footer>Created for Kids ❤️ 無廣告純淨體驗</footer>
+    <footer>Created for Fun ❤️ 無廣告純淨體驗</footer>
 
     <script>
         // 背景粒子動畫
@@ -349,8 +372,8 @@
             constructor() { this.reset(); }
             reset() {
                 this.x = Math.random() * w; this.y = Math.random() * h;
-                this.vx = (Math.random() - 0.5); this.vy = (Math.random() - 0.5);
-                this.color = `hsla(${Math.random()*360}, 70%, 50%, 0.3)`;
+                this.vx = (Math.random() - 0.5) * 0.5; this.vy = (Math.random() - 0.5) * 0.5;
+                this.color = `hsla(${Math.random()*360}, 70%, 50%, 0.15)`;
             }
             update() {
                 this.x += this.vx; this.y += this.vy;
@@ -358,21 +381,22 @@
             }
             draw() {
                 ctx.fillStyle = this.color; ctx.beginPath();
-                ctx.arc(this.x, this.y, 1.5, 0, Math.PI*2); ctx.fill();
+                ctx.arc(this.x, this.y, 2, 0, Math.PI*2); ctx.fill();
             }
         }
 
-        for(let i=0; i<40; i++) particles.push(new P());
+        for(let i=0; i<50; i++) particles.push(new P());
 
         function loop() {
             ctx.clearRect(0, 0, w, h);
             for(let i=0; i<particles.length; i++) {
                 let p1 = particles[i]; p1.update(); p1.draw();
+                // 連線效果
                 for(let j=i+1; j<particles.length; j++) {
                     let p2 = particles[j];
                     let d = Math.hypot(p1.x-p2.x, p1.y-p2.y);
-                    if(d < 120) {
-                        ctx.strokeStyle = `rgba(255,255,255,${(1-d/120)*0.1})`;
+                    if(d < 100) {
+                        ctx.strokeStyle = `rgba(255,255,255,${(1-d/100)*0.05})`;
                         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
                     }
                 }
@@ -381,13 +405,14 @@
         }
         loop();
 
-        // 分類過濾邏輯 (全部 / 經典 / 兒童 / 動腦)
+        // 分類過濾邏輯
         const catButtons = document.querySelectorAll('.cat-btn');
-        const allCards = document.querySelectorAll('.menu-container#all-list .game-card'); // 只過濾下面那個列表
+        // 注意：我們只過濾 "全部遊戲" 列表，不影響 "推薦遊戲"
+        const allCards = document.querySelectorAll('#all-list .game-card'); 
 
         catButtons.forEach(btn => {
             btn.addEventListener('click', () => {
-                const cat = btn.dataset.cat;  // all / classic / kids / brain
+                const cat = btn.dataset.cat;
 
                 // 切換 active 樣式
                 catButtons.forEach(b => b.classList.remove('active'));
@@ -397,9 +422,11 @@
                 allCards.forEach(card => {
                     const cardCats = (card.dataset.cat || '').split(' ');
                     if(cat === 'all') {
-                        card.style.display = '';
+                        card.style.display = 'flex'; // 恢復 flex 佈局
                     } else {
-                        card.style.display = cardCats.includes(cat) ? '' : 'none';
+                        // 檢查是否有交集
+                        const hasCat = cardCats.some(c => c === cat);
+                        card.style.display = hasCat ? 'flex' : 'none';
                     }
                 });
             });
