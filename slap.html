@@ -2,305 +2,305 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>巴掌對決！啪啪舒壓</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Slap Master | 巴掌大師</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body { 
-            font-family: 'Noto Sans TC', sans-serif; 
-            background: linear-gradient(135deg, #ff9a9e, #fecfef, #fecfef, #ff9a9e); 
+            font-family: 'Arial Black', sans-serif; 
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); 
             display: flex; 
             flex-direction: column; 
             min-height: 100vh;
-            touch-action: manipulation;
+            overflow: hidden; /* 禁止捲動 */
+            touch-action: none; /* 禁止手機縮放與捲動 */
         }
 
-        /* 頂部列：返回大廳 */
+        /* 頂部列 */
         header {
-            padding: 0 15px;
-            height: 50px;
+            padding: 15px;
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
-            gap: 10px;
-            background: rgba(0,0,0,0.15);
-            border-bottom: 1px solid rgba(255,255,255,0.4);
-            color: #fff;
+            z-index: 10;
         }
         .home-btn {
             text-decoration: none;
-            font-size: 20px;
-            color: #fff;
-            background: rgba(255,255,255,0.18);
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.4);
+            font-size: 24px;
+            background: rgba(255,255,255,0.3);
+            width: 45px; height: 45px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
         }
-        .game-title {
-            font-weight: 800;
-            text-shadow: 0 0 8px rgba(0,0,0,0.4);
+        .home-btn:active { transform: scale(0.9); }
+        
+        .score-board {
+            font-size: 32px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+            background: rgba(0,0,0,0.2);
+            padding: 5px 20px;
+            border-radius: 20px;
         }
 
-        /* 主區域：置中 canvas */
-        .game-area {
+        /* 遊戲畫布 */
+        #game-container {
             flex: 1;
+            position: relative;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
-            padding: 10px 0 20px;
+            align-items: center;
+            cursor: pointer; /* 讓滑鼠變成手指 */
         }
 
         canvas { 
-            border: 5px solid #fff; 
-            border-radius: 20px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
-            max-width: 100%; 
-            max-height: 80vh; 
-            background: #ffeaa7; 
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
         }
 
-        @media (max-width: 480px) {
-            header { height: 46px; padding: 0 10px; }
-            .home-btn { width: 30px; height: 30px; font-size: 18px; }
-            .game-title { font-size: 14px; }
-            canvas { border-width: 3px; border-radius: 15px; }
+        /* 提示文字 */
+        .tips {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            pointer-events: none;
+            animation: pulse 2s infinite;
         }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
     </style>
 </head>
 <body>
 
     <header>
         <a href="index.html" class="home-btn">🏠</a>
-        <div class="game-title">巴掌對決</div>
+        <div class="score-board">SCORE: <span id="score">0</span></div>
     </header>
 
-    <div class="game-area">
+    <div id="game-container">
         <canvas id="gameCanvas"></canvas>
+        <div class="tips">點擊螢幕用力打！ (開啟聲音體驗更佳)</div>
     </div>
 
     <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
 
-    // 遊戲狀態
+    // --- 遊戲變數 ---
     let score = 0;
-    let face = { x: 0, y: 0, r: 80, shake: 0, red: 0, slapAnim: 0 };
-    let particles = [];
+    let width, height;
+    
+    // 主角臉的狀態
+    let face = {
+        scale: 1,
+        rotation: 0,
+        expression: '😏', // 預設表情：欠打
+        hitTimer: 0
+    };
 
-    // RWD 調整畫布大小，順便更新臉的位置與大小
-    function resizeCanvas() {
-        const maxWidth = window.innerWidth - 40;
-        const maxHeight = window.innerHeight - 120; // 扣掉 header & padding
-        const size = Math.min(maxWidth, maxHeight);
-        canvas.width = Math.min(size, 500);
-        canvas.height = Math.min(canvas.width * 0.8, 400);
-
-        face.r = canvas.width * 0.28;
-        face.x = canvas.width / 2;
-        face.y = canvas.height / 2 + 10;
+    // 手掌與特效列表
+    let hands = []; // 存放巴掌動畫
+    let texts = []; // 存放 "啪！" 文字
+    
+    // --- 初始化與 RWD ---
+    function resize() {
+        width = canvas.width = canvas.clientWidth;
+        height = canvas.height = canvas.clientHeight;
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    window.addEventListener('resize', resize);
+    resize();
 
-    function createParticles(x, y) {
-        for (let i = 0; i < 10; i++) {
-            particles.push({
-                x, y,
-                vx: (Math.random() - 0.5) * 20,
-                vy: (Math.random() - 0.5) * 20 - 5,
-                life: 1,
-                color: `hsl(${Math.random() * 60 + 20}, 100%, 60%)`
-            });
+    // --- 音效引擎 (合成啪啪聲) ---
+    let audioCtx;
+    let noiseBuffer;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            // 預先生成白噪音 Buffer (0.5秒)
+            const bufferSize = audioCtx.sampleRate * 0.5;
+            noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                // 白噪音
+                data[i] = Math.random() * 2 - 1;
+            }
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
         }
     }
 
+    function playSlapSound() {
+        if (!audioCtx) return;
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = noiseBuffer;
+
+        // 濾波器：讓聲音聽起來像打在肉上 (Lowpass Filter)
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1000; // 調整這個頻率改變打擊質感
+
+        // 音量包絡 (Envelope)：瞬間大聲然後快速消失
+        const gainNode = audioCtx.createGain();
+        // ★★★ 這裡設定最大音量 (1.0) ★★★
+        gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime); 
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15); // 0.15秒內消失
+
+        // 連接：Source -> Filter -> Gain -> Output
+        source.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        // 稍微隨機化音調，讓每次巴掌聲音不同
+        source.playbackRate.value = 0.8 + Math.random() * 0.4;
+        
+        source.start();
+    }
+
+    // --- 繪圖邏輯 ---
     function update() {
-        face.shake *= 0.9;
-        face.red *= 0.95;
-        face.slapAnim *= 0.9;
+        // 臉部恢復邏輯
+        if (face.hitTimer > 0) {
+            face.hitTimer--;
+            // 震動效果
+            face.rotation = (Math.random() - 0.5) * 0.5;
+            face.scale = 1.1; 
+        } else {
+            face.rotation = 0;
+            face.scale = 1;
+            face.expression = '😏'; // 恢復欠打表情
+        }
 
-        particles = particles.filter(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += 0.5;
-            p.life -= 0.05;
-            return p.life > 0;
-        });
+        // 更新手掌動畫
+        for (let i = hands.length - 1; i >= 0; i--) {
+            hands[i].life -= 0.08; // 消失速度
+            hands[i].scale -= 0.02;
+            if (hands[i].life <= 0) hands.splice(i, 1);
+        }
+
+        // 更新文字特效
+        for (let i = texts.length - 1; i >= 0; i--) {
+            texts[i].y -= 2; // 往上飄
+            texts[i].life -= 0.03;
+            if (texts[i].life <= 0) texts.splice(i, 1);
+        }
     }
 
-    function drawFace() {
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        // 1. 繪製臉 (使用 Emoji，清晰又生動)
         ctx.save();
-        ctx.translate(
-            face.x + face.shake * (Math.random() - 0.5) * 12, 
-            face.y + face.shake * (Math.random() - 0.5) * 12
-        );
-
-        // 每 30 下一個大階段，階段越高表情越誇張
-const STEP_SIZE = 30;                                // ★ 想再調整只改這個即可
-const step = Math.min(Math.floor(score / STEP_SIZE), 3);
-const within = score % STEP_SIZE;
-const baseStepIntensity = step / 3;
-const progress = within / STEP_SIZE;
-const micro = progress * progress;
-const intensity = Math.min(baseStepIntensity + micro * (1/3), 1);
-
-
-        // 臉底色 + 紅潤
-        const baseLight = 50 + face.red + intensity * 10;
-        ctx.fillStyle = `hsl(40, 70%, ${baseLight}%)`;
-        ctx.beginPath();
-        ctx.arc(0, 0, face.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 腮紅
-        ctx.fillStyle = `rgba(255, 99, 132, ${0.4 + intensity * 0.3})`;
-        ctx.beginPath();
-        ctx.ellipse(-face.r * 0.45, face.r * 0.1, face.r * 0.25, face.r * 0.15, 0, 0, Math.PI * 2);
-        ctx.ellipse( face.r * 0.45, face.r * 0.1, face.r * 0.25, face.r * 0.15, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        const eyeY = -face.r * 0.28 + face.slapAnim * 6;
-        const blink = face.slapAnim * (0.4 + intensity * 0.6);
-        const eyeOpen = face.r * (0.18 - blink * 0.12);
-
-        // 眼白
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.ellipse(-face.r * 0.3, eyeY, face.r * 0.22, Math.max(eyeOpen, 2), 0, 0, Math.PI * 2);
-        ctx.ellipse( face.r * 0.3, eyeY, face.r * 0.22, Math.max(eyeOpen, 2), 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 瞳孔
-        ctx.fillStyle = '#000';
-        const pupilBase = face.r * 0.08;
-        const pupilSize = Math.max(pupilBase - blink * (pupilBase * 0.7), 2);
-        ctx.beginPath();
-        ctx.arc(-face.r * 0.3 + face.slapAnim * (5 + intensity * 8), eyeY, pupilSize, 0, Math.PI * 2);
-        ctx.arc( face.r * 0.3 - face.slapAnim * (5 + intensity * 8), eyeY, pupilSize, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 眉毛
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 3;
-        const browOffset = 15 + intensity * 10;
-        ctx.beginPath();
-        ctx.moveTo(-face.r * 0.42, eyeY - browOffset - blink * 4);
-        ctx.lineTo(-face.r * 0.18, eyeY - (browOffset - 4) - blink * 6);
-        ctx.moveTo( face.r * 0.42, eyeY - browOffset - blink * 4);
-        ctx.lineTo( face.r * 0.18, eyeY - (browOffset - 4) - blink * 6);
-        ctx.stroke();
-
-        // 嘴巴
-        ctx.fillStyle = '#ff6b6b';
-        const mouthOpen = face.r * (0.18 + face.slapAnim * 0.3 + intensity * 0.15);
-        ctx.beginPath();
-        ctx.ellipse(
-            0, 
-            face.r * (0.25 + face.slapAnim * 0.15),
-            face.r * 0.2 + intensity * face.r * 0.1,
-            mouthOpen,
-            0, 0, Math.PI * 2
-        );
-        ctx.fill();
-
+        ctx.translate(centerX, centerY);
+        ctx.rotate(face.rotation);
+        ctx.scale(face.scale, face.scale);
+        
+        ctx.font = `${Math.min(width, height) * 0.4}px serif`; // 根據螢幕大小調整臉的大小
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(face.expression, 0, 0);
         ctx.restore();
-    }
 
-    function drawParticles() {
-        particles.forEach(p => {
+        // 2. 繪製手掌
+        hands.forEach(hand => {
             ctx.save();
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.life * 5, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.translate(hand.x, hand.y);
+            ctx.rotate(hand.angle); // 手掌隨機角度
+            ctx.scale(hand.scale, hand.scale);
+            ctx.globalAlpha = hand.life;
+            
+            ctx.font = '80px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('👋', 0, 0);
+            ctx.restore();
+        });
+
+        // 3. 繪製 "啪!" 文字特效
+        texts.forEach(text => {
+            ctx.save();
+            ctx.globalAlpha = text.life;
+            ctx.font = `bold ${text.size}px Arial`;
+            ctx.fillStyle = text.color;
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.textAlign = 'center';
+            ctx.strokeText(text.str, text.x, text.y);
+            ctx.fillText(text.str, text.x, text.y);
             ctx.restore();
         });
     }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 背景星星
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        for (let i = 0; i < 20; i++) {
-            const x = (i * 137.5) % canvas.width;
-            const y = (i * 239.3) % canvas.height;
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // 分數：靠近框上緣、稍微小一點、字比較細
-        ctx.fillStyle = '#000000';
-        const scoreFontSize = Math.min(canvas.width / 10, 40); // 比原來小
-        ctx.font = `bold ${scoreFontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.shadowColor = 'rgba(255,255,255,0.6)';
-        ctx.shadowBlur = 4;
-        ctx.fillText(`X ${score}`, canvas.width / 2, 8); // 8px 從框線往內，視覺上在白線附近
-        ctx.shadowBlur = 0;
-
-        drawFace();
-        drawParticles();
-
-        // 提示文字
-        ctx.fillStyle = '#e17055';
-        ctx.font = `${Math.min(canvas.width / 15, 32)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText('啪！用力打我！', canvas.width / 2, 40);
-    }
-
-    function gameLoop() {
+    function loop() {
         update();
         draw();
-        requestAnimationFrame(gameLoop);
+        requestAnimationFrame(loop);
     }
 
-    function handleSlap(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
+    // --- 互動邏輯 ---
+    function slap(x, y) {
+        initAudio(); // 確保音效引擎啟動
+        playSlapSound();
 
-        const dx = x - face.x;
-        const dy = y - face.y;
-        if (Math.sqrt(dx*dx + dy*dy) < face.r * 1.2) {
-            score++;
-            face.shake = 1.2;
-            face.red = 40;
-            face.slapAnim = 1;
-            createParticles(x, y);
+        score++;
+        scoreEl.innerText = score;
 
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.frequency.value = 200;
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            oscillator.start(audioCtx.currentTime);
-            oscillator.stop(audioCtx.currentTime + 0.1);
-        }
+        // 臉部受擊反應
+        face.hitTimer = 10;
+        // 隨機切換痛苦表情
+        const painFaces = ['😵', '😭', '🥴', '🤕', '🤮'];
+        face.expression = painFaces[Math.floor(Math.random() * painFaces.length)];
+
+        // 產生手掌動畫
+        hands.push({
+            x: x,
+            y: y,
+            angle: (Math.random() - 0.5) * 1, // 隨機傾斜
+            scale: 1.5,
+            life: 1.0
+        });
+
+        // 產生文字特效
+        const hitWords = ['啪！', 'SMACK!', 'PA!', '噗滋!', '好痛!'];
+        texts.push({
+            x: x + (Math.random()-0.5)*50,
+            y: y - 50,
+            str: hitWords[Math.floor(Math.random() * hitWords.length)],
+            color: `hsl(${Math.random() * 360}, 100%, 50%)`, // 彩色字
+            size: 40 + Math.random() * 20,
+            life: 1.0
+        });
     }
 
-    canvas.addEventListener('click', e => handleSlap(e.clientX, e.clientY));
-    canvas.addEventListener('touchstart', e => {
-        e.preventDefault();
-        handleSlap(e.touches[0].clientX, e.touches[0].clientY);
+    // 支援滑鼠點擊
+    canvas.addEventListener('mousedown', e => {
+        slap(e.clientX, e.clientY);
     });
 
-    gameLoop();
-    </script>
+    // 支援手機多點觸控 (可以雙手連打!)
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault(); // 防止畫面縮放
+        for (let i = 0; i < e.touches.length; i++) {
+            slap(e.touches[i].clientX, e.touches[i].clientY);
+        }
+    }, { passive: false });
 
+    // 啟動遊戲
+    loop();
+
+    </script>
 </body>
 </html>
-
