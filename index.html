@@ -198,7 +198,6 @@
         <h1>NEON ARCADE</h1>
         <p class="subtitle">極限街機遊樂場</p>
 
-        <!-- 分類按鈕列 -->
         <div class="category-bar">
             <button class="cat-btn active" data-cat="all">全部</button>
             <button class="cat-btn" data-cat="classic">經典</button>
@@ -207,7 +206,6 @@
         </div>
     </header>
 
-    <!-- 推薦遊戲區 -->
     <div class="menu-section-title">推薦遊戲</div>
     <div class="menu-container" id="featured-list">
         
@@ -224,25 +222,37 @@
             </div>
         </a>
 
-        <a href="pacman.html" class="game-card" style="--theme: #ffd700;" data-cat="classic kids">
-            <div class="icon">👻</div>
+        <a href="piano.html" class="game-card" style="--theme: #00ffff;" data-cat="classic kids">
+            <div class="icon">🎹</div>
             <div class="info">
-                <div class="game-title">霓虹追逐者</div>
-                <div class="game-desc">十字鍵操控，RWD 地圖生成，吃掉所有豆子！</div>
+                <div class="game-title">霓虹鋼琴</div>
+                <div class="game-desc">跟隨節奏點擊落下的黑塊，體驗指尖音樂盛宴！</div>
                 <div class="meta">
-                    <span class="difficulty easy">●●</span>
-                    <span class="tag">街機</span>
-                    <span class="tag">迷宮</span>
+                    <span class="difficulty normal">●●</span>
+                    <span class="tag">節奏</span>
+                    <span class="tag">音樂</span>
                 </div>
             </div>
         </a>
 
     </div>
 
-    <!-- 全部遊戲區 -->
     <div class="menu-section-title">全部遊戲</div>
     <div class="menu-container" id="all-list">
         
+        <a href="piano.html" class="game-card" style="--theme: #00ffff;" data-cat="classic kids">
+            <div class="icon">🎹</div>
+            <div class="info">
+                <div class="game-title">霓虹鋼琴</div>
+                <div class="game-desc">跟隨節奏點擊落下的黑塊，體驗指尖音樂盛宴！</div>
+                <div class="meta">
+                    <span class="difficulty normal">●●</span>
+                    <span class="tag">節奏</span>
+                    <span class="tag">音樂</span>
+                </div>
+            </div>
+        </a>
+
         <a href="tetris.html" class="game-card" style="--theme: #bd00ff;" data-cat="classic brain">
             <div class="icon">🧩</div>
             <div class="info">
@@ -373,7 +383,7 @@
 
         // 分類過濾邏輯 (全部 / 經典 / 兒童 / 動腦)
         const catButtons = document.querySelectorAll('.cat-btn');
-        const allCards = document.querySelectorAll('.game-card');
+        const allCards = document.querySelectorAll('.menu-container#all-list .game-card'); // 只過濾下面那個列表
 
         catButtons.forEach(btn => {
             btn.addEventListener('click', () => {
