@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Piano | 極限街機版</title>
+    <title>Neon Piano | 智慧觸控版</title>
     <style>
         /* === 核心樣式：鎖死觸控，防止縮放 === */
         body, html { 
@@ -11,6 +11,7 @@
             background: #000; overflow: hidden; 
             font-family: 'Segoe UI', 'Roboto', sans-serif; 
             touch-action: none; user-select: none; -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent; /* 移除點擊高亮 */
         }
         
         #game-container { 
@@ -40,7 +41,7 @@
         
         /* 頂部資訊列 */
         .hud { 
-            width: 100%; padding: 60px 20px 10px 20px; /* 上方留空間給 Home 鍵 */
+            width: 100%; padding: 60px 20px 10px 20px; 
             display: flex; justify-content: space-between; align-items: flex-end; 
             box-sizing: border-box; z-index: 10;
         }
@@ -156,7 +157,7 @@
     <div id="start-screen">
         <div id="main-menu" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
             <div class="logo">NEON PIANO</div>
-            <div class="tagline">MAX VOLUME EDITION</div>
+            <div class="tagline">SMART TOUCH EDITION</div>
             
             <button class="diff-btn d-easy" onclick="startGame('EASY')">
                 <span>EASY</span> <span class="dots">●</span>
@@ -181,41 +182,33 @@
 </div>
 
 <script>
-    /** ================= 系統設置 ================= **/
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const gameContainer = document.getElementById('game-container');
     const dangerOverlay = document.getElementById('danger-overlay');
     
-    // UI Elements
     const uiLayer = document.getElementById('ui-layer');
     const scoreValEl = document.getElementById('score-val');
     const lifeContainer = document.getElementById('life-container');
     const comboBox = document.getElementById('combo-box');
     const comboValEl = document.getElementById('combo-val');
     
-    // Screens
     const startScreen = document.getElementById('start-screen');
     const mainMenu = document.getElementById('main-menu');
     const gameOverUi = document.getElementById('game-over-ui');
     const finalScoreEl = document.getElementById('final-score');
 
-    // 遊戲狀態
     let gameState = 'MENU';
     let score = 0;
     let combo = 0;
     let life = 10;
     const MAX_LIFE = 10;
     
-    // 實體
     let notes = [];
     let particles = [];
     let laneEffects = [0,0,0,0]; 
-    
-    // 時間控制
     let nextSpawnTime = 0;
 
-    // 粒子類別 (修正Bug的關鍵)
     class Particle {
         constructor(x, y, color) {
             this.x = x; this.y = y; this.color = color;
@@ -228,7 +221,7 @@
         update() {
             this.x += this.vx;
             this.y += this.vy;
-            this.vy += 0.5; // 重力
+            this.vy += 0.5;
             this.life -= this.decay;
         }
         draw(ctx) {
@@ -241,7 +234,6 @@
         }
     }
 
-    /** ================= 難度配置 ================= **/
     const CONFIG = {
         LANE_COUNT: 4,
         HIT_Y_RATIO: 0.85,
@@ -259,7 +251,6 @@
     let currentDiffSetting = DIFFICULTIES['NORMAL'];
     let metrics = { w: 0, h: 0, laneW: 0, hitY: 0, speed: 0 };
 
-    /** ================= 核心與渲染 ================= **/
     function resize() {
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
@@ -293,9 +284,8 @@
         }
     }
 
-    /** ================= 音效系統 (MAX Volume) ================= **/
     let audioCtx;
-    const FREQS = [261.63, 311.13, 392.00, 523.25]; // Cm7
+    const FREQS = [261.63, 311.13, 392.00, 523.25];
     
     function initAudio() {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -304,38 +294,30 @@
 
     function playSound(lane, type) {
         if(!audioCtx) return;
-        
         const osc = audioCtx.createOscillator();
         osc.type = 'sawtooth';
-        
         let freq = FREQS[lane % 4];
         if (type === 'PERFECT') freq *= 2;
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-
         const subOsc = audioCtx.createOscillator();
         subOsc.type = 'sine';
         subOsc.frequency.setValueAtTime(freq / 2, audioCtx.currentTime);
-
         const gain = audioCtx.createGain();
         const maxVol = 0.8; 
         gain.gain.setValueAtTime(maxVol, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
         osc.connect(gain);
         subOsc.connect(gain);
         gain.connect(audioCtx.destination);
-
         osc.start();
         subOsc.start();
         osc.stop(audioCtx.currentTime + 0.3);
         subOsc.stop(audioCtx.currentTime + 0.3);
     }
 
-    /** ================= 遊戲邏輯 ================= **/
     function startGame(diff) {
         currentDiffSetting = DIFFICULTIES[diff];
         metrics.speed = metrics.h * CONFIG.BASE_SPEED * currentDiffSetting.speedMod;
-        
         score = 0;
         combo = 0;
         life = MAX_LIFE;
@@ -343,12 +325,10 @@
         particles = [];
         nextSpawnTime = Date.now();
         gameState = 'PLAYING';
-        
         scoreValEl.innerText = '0';
         renderLifeBar();
         startScreen.style.opacity = 0;
         setTimeout(() => startScreen.style.display = 'none', 300);
-        
         initAudio();
         loop();
     }
@@ -357,14 +337,11 @@
         if (now > nextSpawnTime) {
             let gap = currentDiffSetting.gap;
             gap *= (1 - Math.min(combo * 0.002, 0.2));
-
             const lane1 = Math.floor(Math.random() * 4);
             createNote(lane1, now);
-
             if (Math.random() < currentDiffSetting.multiChance) {
                 let lane2 = (lane1 + 1 + Math.floor(Math.random() * 3)) % 4;
                 createNote(lane2, now);
-                
                 if (currentDiffSetting.multiChance > 0.4 && Math.random() < 0.3) {
                      let lane3 = (lane1 + 2) % 4;
                      if (lane3 !== lane2) createNote(lane3, now);
@@ -393,15 +370,11 @@
                 handleMiss(n.lane);
             }
         });
-        
         notes = notes.filter(n => !n.hit && !n.missed);
-        
-        // 粒子更新 (修正後)
         for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].update();
             if (particles[i].life <= 0) particles.splice(i, 1);
         }
-
         for (let i=0; i<4; i++) {
             if (laneEffects[i] > 0) laneEffects[i] -= 0.1;
         }
@@ -412,30 +385,30 @@
         combo = 0;
         renderLifeBar();
         updateComboUI();
-        
         gameContainer.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
         setTimeout(() => gameContainer.style.transform = 'none', 50);
-
         showFeedback(lane * metrics.laneW + metrics.laneW/2, metrics.h - 50, 'MISS', 'miss');
-
         if (life <= 0) gameOver();
     }
 
-    function handleHit(lane) {
-        if (gameState !== 'PLAYING') return;
-
-        laneEffects[lane] = 1.0;
-
-        const hitZone = 150;
+    // ★★★ 智慧觸控判定核心 (Smart Hit Logic) ★★★
+    // 返回 true 表示成功判定，false 表示該軌道沒東西
+    function attemptHit(lane) {
+        // 1. 寬容判定區：180px (垂直)
+        const hitZone = 180; 
+        
+        // 2. 尋找目標
         const target = notes.find(n => n.lane === lane && !n.hit && Math.abs(n.y - metrics.hitY) < hitZone);
         
         if (target) {
             target.hit = true;
+            laneEffects[lane] = 1.0; // 視覺亮起
+
             const dist = Math.abs(target.y - metrics.hitY);
             const x = lane * metrics.laneW + metrics.laneW/2;
             const y = metrics.hitY;
 
-            if (dist < 50) {
+            if (dist < 60) { // 放寬 Perfect 判定
                 score += 100;
                 combo++;
                 playSound(lane, 'PERFECT');
@@ -450,10 +423,39 @@
             }
             scoreValEl.innerText = score;
             updateComboUI();
+            return true; // 成功擊中
         }
+        return false; // 沒擊中
     }
 
-    // 修正後的粒子生成 (使用 Class)
+    // 處理輸入：包含「容錯機制」
+    function processInput(lane, exactX = null) {
+        if (gameState !== 'PLAYING') return;
+        
+        initAudio(); // 確保音效啟動
+
+        // 1. 嘗試直接判定點擊的軌道
+        if (attemptHit(lane)) return;
+
+        // 2. 如果主要軌道沒東西，檢查是否點在邊界 (Fat Finger Assist)
+        if (exactX !== null) {
+            const laneW = metrics.laneW;
+            const localX = exactX % laneW; // 在該軌道內的 X 座標 (0 ~ laneW)
+            
+            // 如果點擊位置靠左邊界 (< 35%)，嘗試判定左邊的軌道
+            if (localX < laneW * 0.35 && lane > 0) {
+                if (attemptHit(lane - 1)) return;
+            }
+            // 如果點擊位置靠右邊界 (> 65%)，嘗試判定右邊的軌道
+            else if (localX > laneW * 0.65 && lane < 3) {
+                if (attemptHit(lane + 1)) return;
+            }
+        }
+
+        // 3. 如果都沒判定到，就當作空揮 (只亮燈不計分，或播放空揮音效)
+        laneEffects[lane] = 0.5; // 稍微亮一下表示有感應到
+    }
+
     function spawnParticles(x, y, color, count) {
         for(let i=0; i<count; i++) {
             particles.push(new Particle(x, y, color));
@@ -487,11 +489,9 @@
     function gameOver() {
         gameState = 'GAMEOVER';
         finalScoreEl.innerText = score;
-        
         startScreen.style.display = 'flex';
         mainMenu.style.display = 'none';
         gameOverUi.style.display = 'flex';
-        
         setTimeout(() => startScreen.style.opacity = 1, 10);
         dangerOverlay.classList.remove('danger-active');
     }
@@ -502,35 +502,38 @@
         gameState = 'MENU';
     }
 
-    /** ================= 輸入監聽 ================= **/
+    // --- 輸入監聽 (改良版) ---
     const keys = ['d', 'f', 'j', 'k'];
-    
     document.addEventListener('keydown', e => {
         if (e.repeat) return;
         const idx = keys.indexOf(e.key.toLowerCase());
-        if (idx > -1) handleHit(idx);
+        if (idx > -1) processInput(idx);
     });
 
-    canvas.addEventListener('touchstart', e => {
-        e.preventDefault();
+    // 改監聽 body，確保全螢幕觸控都有效
+    document.body.addEventListener('touchstart', e => {
+        // e.preventDefault(); // 註解掉：有些瀏覽器阻擋這個會導致音效無法啟動，靠CSS touch-action: none 即可
         for (let i = 0; i < e.touches.length; i++) {
             const touch = e.touches[i];
-            const lane = Math.floor((touch.clientX / metrics.w) * 4);
-            if (lane >= 0 && lane < 4) handleHit(lane);
+            // 獲取相對於 Canvas 的座標
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            
+            const lane = Math.floor((x / metrics.w) * 4);
+            if (lane >= 0 && lane < 4) {
+                processInput(lane, x);
+            }
         }
     }, { passive: false });
 
-    /** ================= 遊戲循環 ================= **/
     function loop() {
         if (gameState !== 'PLAYING') return;
 
         ctx.clearRect(0, 0, metrics.w, metrics.h);
-        
         const now = Date.now();
         spawnLogic(now);
         updatePhysics();
 
-        // 1. 光束
         ctx.globalCompositeOperation = 'lighter';
         for(let i=0; i<4; i++) {
             if(laneEffects[i] > 0) {
@@ -546,7 +549,6 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
 
-        // 2. 軌道分隔
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -556,7 +558,6 @@
         }
         ctx.stroke();
 
-        // 3. 判定線
         ctx.shadowBlur = 15; ctx.shadowColor = '#00e5ff';
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3;
@@ -565,7 +566,6 @@
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // 4. 音符
         notes.forEach(n => {
             if (n.hit) return;
             ctx.shadowBlur = 20; ctx.shadowColor = n.color;
@@ -579,7 +579,6 @@
             ctx.shadowBlur = 0;
         });
 
-        // 5. 粒子
         particles.forEach(p => { p.draw(ctx); });
 
         requestAnimationFrame(loop);
