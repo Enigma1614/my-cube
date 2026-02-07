@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SKY ACE 1945 | 究極挑戰版</title>
+    <title>SKY ACE 1945 | 完美穩定版</title>
     <style>
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
-            background: #111; overflow: hidden; 
+            background: #050505; overflow: hidden; 
             font-family: 'Courier New', monospace;
             touch-action: none; user-select: none; -webkit-user-select: none;
         }
@@ -17,6 +17,7 @@
             background: #004477; 
             overflow: hidden;
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            cursor: none; /* 遊戲中隱藏滑鼠，用準心代替 */
         }
 
         canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
@@ -38,58 +39,56 @@
         }
 
         .hud-top { display: flex; justify-content: space-between; color: #fff; text-shadow: 2px 2px 0 #000; }
-        .score-box { font-size: 24px; font-weight: bold; }
-        .life-box { font-size: 24px; color: #ff3b30; letter-spacing: 5px; }
+        .score-box { font-size: 20px; font-weight: bold; text-align: left;}
+        .life-box { font-size: 20px; color: #ff3b30; letter-spacing: 2px; text-align: right;}
         
-        .weapon-info { font-size: 14px; color: #f1c40f; margin-top: 5px; font-weight: bold; text-shadow: 1px 1px 0 #000; }
-        .sub-weapon-info { font-size: 12px; color: #3498db; margin-top: 2px; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+        .weapon-status { font-size: 12px; color: #f1c40f; margin-top: 5px; line-height: 1.5; text-shadow: 1px 1px 0 #000; }
+        .sub-status { color: #3498db; }
 
-        /* Boss 血條容器 */
+        /* Boss 血條 */
         #boss-hud {
-            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-            width: 80%; display: none; flex-direction: column; align-items: center;
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            width: 70%; display: none; flex-direction: column; align-items: center;
         }
-        #boss-name { color: #ff3b30; font-weight: 900; font-size: 18px; margin-bottom: 5px; text-shadow: 2px 2px 0 #000; letter-spacing: 2px; }
-        #boss-hp-bar { width: 100%; height: 10px; background: #550000; border: 2px solid #fff; }
+        #boss-name { color: #ff3b30; font-weight: 900; font-size: 14px; margin-bottom: 3px; text-shadow: 2px 2px 0 #000; letter-spacing: 1px; }
+        #boss-hp-bar { width: 100%; height: 8px; background: #330000; border: 2px solid #fff; }
         #boss-hp-fill { width: 100%; height: 100%; background: #ff3b30; transition: width 0.1s; }
 
-        /* 警報閃光 */
+        /* 警報 */
         #warning-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(255, 0, 0, 0.3); opacity: 0; pointer-events: none; z-index: 15;
             display: flex; justify-content: center; align-items: center;
         }
-        .warning-text { font-size: 60px; color: #fff; font-weight: 900; letter-spacing: 10px; transform: rotate(-10deg); text-shadow: 5px 5px 0 #ff0000; display: none; }
-        
+        .warning-text { font-size: 50px; color: #fff; font-weight: 900; letter-spacing: 5px; transform: rotate(-10deg); text-shadow: 4px 4px 0 #ff0000; display: none; }
         .flash-anim { animation: flashScreen 0.5s infinite; }
         @keyframes flashScreen { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
 
-        /* 全螢幕閃光 (Bomb特效用) */
         #flash-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #fff; opacity: 0; pointer-events: none; z-index: 15;
             transition: opacity 0.1s;
         }
 
-        /* 開始畫面 */
+        /* 選單 */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 100;
+            background: rgba(0,0,0,0.85); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             color: #fff; text-align: center;
         }
         
-        .title { font-size: 48px; color: #f1c40f; text-shadow: 4px 4px 0 #c0392b; margin-bottom: 20px; font-weight: 900; letter-spacing: 5px; }
-        .blink { animation: blink 1s infinite; }
+        .title { font-size: 40px; color: #f1c40f; text-shadow: 4px 4px 0 #c0392b; margin-bottom: 20px; font-weight: 900; letter-spacing: 3px; }
+        .blink { animation: blink 1s infinite; font-size: 14px; }
         @keyframes blink { 50% { opacity: 0; } }
         
         .btn {
-            background: #c0392b; color: #fff; border: 4px solid #fff;
-            padding: 15px 40px; font-size: 24px; font-weight: bold; font-family: inherit;
+            background: #c0392b; color: #fff; border: 3px solid #fff;
+            padding: 12px 30px; font-size: 20px; font-weight: bold; font-family: inherit;
             cursor: pointer; text-transform: uppercase; margin-top: 20px;
-            box-shadow: 0 10px 0 #7f261c; transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 6px 0 #7f261c; transition: transform 0.1s;
         }
-        .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #7f261c; }
+        .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #7f261c; }
 
         #game-over-ui { display: none; flex-direction: column; align-items: center; }
 
@@ -118,14 +117,14 @@
         <div class="hud-top">
             <div class="score-box">
                 SCORE: <span id="score">0</span>
-                <div class="weapon-info" id="weapon-display">MAIN: NORMAL</div>
-                <div class="sub-weapon-info" id="sub-weapon-display">SUB: NONE</div>
+                <div class="weapon-status" id="weapon-display">MAIN: NORMAL</div>
+                <div class="weapon-status sub-status" id="sub-weapon-display">SUB: NONE</div>
             </div>
             <div class="life-box" id="lives">❤️❤️❤️</div>
         </div>
         
         <div id="boss-hud">
-            <div id="boss-name">⚠ AERIAL FORTRESS TITAN ⚠</div>
+            <div id="boss-name">⚠ TARGET: TITAN ⚠</div>
             <div id="boss-hp-bar"><div id="boss-hp-fill"></div></div>
         </div>
     </div>
@@ -135,19 +134,19 @@
             <div class="title">SKY ACE<br>1945</div>
             <p class="blink">INSERT COIN TO START</p>
             <button class="btn" onclick="startGame()">MISSION START</button>
-            <p style="margin-top: 20px; font-size: 12px; color: #aaa;">DRAG TO MOVE • AUTO FIRE</p>
+            <p style="margin-top: 20px; font-size: 12px; color: #aaa;">HOLD TO SHOOT • DODGE</p>
         </div>
 
         <div id="game-over-ui">
-            <div class="title" style="color: #ff3b30;">MISSION FAILED</div>
-            <div style="font-size: 24px; margin-bottom: 20px;">FINAL SCORE: <span id="final-score">0</span></div>
-            <button class="btn" onclick="startGame()">TRY AGAIN</button>
+            <div class="title" style="color: #ff3b30;">DEFEATED</div>
+            <div style="font-size: 20px; margin-bottom: 20px;">SCORE: <span id="final-score">0</span></div>
+            <button class="btn" onclick="startGame()">RETRY</button>
         </div>
     </div>
 </div>
 
 <script>
-    /** ================= 1. 引擎與設定 ================= **/
+    /** ================= 1. 系統核心 ================= **/
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const warningOverlay = document.getElementById('warning-overlay');
@@ -156,22 +155,24 @@
     const bossHpFill = document.getElementById('boss-hp-fill');
     const flashOverlay = document.getElementById('flash-overlay');
     
-    const GAME_WIDTH = 300;
-    const GAME_HEIGHT = 500;
+    // 自適應大小
+    let GAME_WIDTH = 320;
+    let GAME_HEIGHT = 568;
     
     let gameState = 'MENU';
     let score = 0;
     let lives = 3;
     let frameCount = 0;
-    let input = { x: GAME_WIDTH / 2, y: GAME_HEIGHT - 50, active: false };
+    let input = { x: GAME_WIDTH / 2, y: GAME_HEIGHT - 80, active: false };
     
-    // 遊戲進度控制
-    let nextBossScore = 20000; // Boss 初始分數
-    const BOSS_INTERVAL = 80000; // 後續每 8 萬分
+    // Boss 節奏控制
+    let nextBossScore = 20000;
+    const BOSS_INTERVAL = 80000;
     
     let bossLevel = 1; 
     let bossActive = false;
     
+    // 實體池
     let player;
     let bullets = [];
     let enemies = [];
@@ -181,7 +182,7 @@
     let textPopups = [];
     let boss = null;
 
-    // 像素圖定義
+    // 像素圖定義 (優化版)
     const SPRITES = {
         PLAYER: [[0,0,0,1,0,0,0],[0,0,1,1,1,0,0],[0,1,1,2,1,1,0],[1,1,1,2,1,1,1],[1,0,1,2,1,0,1],[0,0,1,2,1,0,0],[0,1,1,0,1,1,0]],
         ENEMY_SMALL: [[0,0,1,1,1,0,0],[0,1,1,1,1,1,0],[1,1,0,1,0,1,1],[0,0,0,1,0,0,0],[0,0,1,0,1,0,0]],
@@ -191,7 +192,6 @@
             [0,0,0,0,1,1,2,2,2,2,2,2,2,2,1,1,0,0,0,0],
             [0,0,1,1,2,2,2,2,3,3,3,3,2,2,2,2,1,1,0,0],
             [0,1,2,2,2,3,3,3,3,4,4,3,3,3,3,2,2,2,1,0],
-            [1,2,2,3,3,4,4,4,4,4,4,4,4,4,4,3,3,2,2,1],
             [1,2,2,3,3,4,4,4,4,4,4,4,4,4,4,3,3,2,2,1],
             [1,2,2,2,2,2,3,3,3,3,3,3,3,3,2,2,2,2,2,1],
             [0,1,2,1,2,1,2,1,2,2,2,2,1,2,1,2,1,2,1,0],
@@ -209,11 +209,14 @@
         ITEM_LASER: [[1,0,0], [1,0,0], [1,0,0], [1,0,0], [1,1,1]],
         ITEM_BOMB: [[1,1,0], [1,0,1], [1,1,0], [1,0,1], [1,1,0]],
         ITEM_SHIELD: [[0,1,1], [1,0,0], [0,1,0], [0,0,1], [1,1,0]],
-        ITEM_HEART: [[1,0,1], [1,0,1], [1,1,1], [1,0,1], [1,0,1]]
+        ITEM_HEART: [[1,0,1], [1,0,1], [1,1,1], [1,0,1], [1,0,1]],
+        ITEM_SPREAD: [[1,0,1], [1,0,1], [1,1,1], [1,1,1], [1,0,1]]
     };
 
-    /** ================= 2. 渲染引擎 ================= **/
     function resize() {
+        const stage = document.getElementById('game-stage');
+        GAME_WIDTH = stage.clientWidth;
+        GAME_HEIGHT = stage.clientHeight;
         canvas.width = GAME_WIDTH;
         canvas.height = GAME_HEIGHT;
     }
@@ -221,21 +224,20 @@
     resize();
 
     function drawSprite(ctx, sprite, cx, cy, colors, scale = 1, rotation = 0) {
+        if (isNaN(cx) || isNaN(cy)) return; // 防呆
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(rotation);
         const rows = sprite.length;
         const cols = sprite[0].length;
         const pixelSize = 3 * scale;
-        const w = cols * pixelSize;
-        const h = rows * pixelSize;
-        const startX = - w / 2;
-        const startY = - h / 2;
+        const startX = - (cols * pixelSize) / 2;
+        const startY = - (rows * pixelSize) / 2;
 
         for(let r=0; r<rows; r++) {
             for(let c=0; c<cols; c++) {
                 const val = sprite[r][c];
-                if (val > 0) {
+                if (val > 0 && colors[val-1]) {
                     ctx.fillStyle = colors[val-1];
                     ctx.fillRect(startX + c*pixelSize, startY + r*pixelSize, pixelSize, pixelSize);
                 }
@@ -247,7 +249,7 @@
     class FloatingText {
         constructor(x, y, text, color) {
             this.x = x; this.y = y; this.text = text; this.color = color;
-            this.life = 60; this.vy = -1;
+            this.life = 60; this.vy = -1.5;
         }
         update() { this.y += this.vy; this.life--; }
         draw(ctx) {
@@ -263,8 +265,11 @@
         }
     }
 
-    /** ================= 3. 音效合成 ================= **/
+    /** ================= 3. 音效合成 (防當機版) ================= **/
     let audioCtx;
+    // ★★★ 音效冷卻系統，防止瞬間大量音效卡死瀏覽器 ★★★
+    const soundCooldowns = {};
+
     function initAudio() {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if(audioCtx.state === 'suspended') audioCtx.resume();
@@ -272,15 +277,20 @@
 
     function playSound(type) {
         if(!audioCtx) return;
+        
+        const now = audioCtx.currentTime;
+        // 除了射擊，其他音效每 0.1 秒最多播放一次
+        if (type !== 'SHOOT' && soundCooldowns[type] && now - soundCooldowns[type] < 0.1) return;
+        soundCooldowns[type] = now;
+
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        const now = audioCtx.currentTime;
 
         if (type === 'SHOOT') {
             osc.type = 'square';
             osc.frequency.setValueAtTime(800, now);
             osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.setValueAtTime(0.05, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.start(); osc.stop(now + 0.1);
@@ -288,20 +298,12 @@
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(200, now);
             osc.frequency.linearRampToValueAtTime(800, now + 0.3);
-            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.setValueAtTime(0.05, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.start(); osc.stop(now + 0.3);
-        } else if (type === 'ALARM') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.linearRampToValueAtTime(400, now + 0.5);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.5);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(now + 0.5);
         } else if (type === 'EXPLODE') {
-            const bufferSize = audioCtx.sampleRate * 0.5;
+            const bufferSize = audioCtx.sampleRate * 0.3; // 縮短時間
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
@@ -309,9 +311,9 @@
             noise.buffer = buffer;
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1000, now);
+            filter.frequency.setValueAtTime(800, now);
             filter.frequency.linearRampToValueAtTime(100, now + 0.3);
-            gain.gain.setValueAtTime(0.3, now); 
+            gain.gain.setValueAtTime(0.2, now); // 降低音量
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
             noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
             noise.start();
@@ -323,21 +325,23 @@
             gain.gain.linearRampToValueAtTime(0, now + 0.3);
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.start(); osc.stop(now + 0.3);
+        } else if (type === 'ALARM') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.linearRampToValueAtTime(400, now + 0.5);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(now + 0.5);
         } else if (type === 'BOMB') {
-            const bufferSize = audioCtx.sampleRate * 1.0;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-            const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(500, now);
-            filter.frequency.linearRampToValueAtTime(50, now + 1.0);
-            gain.gain.setValueAtTime(0.8, now);
+            // 簡化 BOMB 音效
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 1.0);
+            gain.gain.setValueAtTime(0.5, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
-            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
-            noise.start();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(now + 1.0);
         }
     }
 
@@ -358,9 +362,13 @@
         update() {
             if (input.active) {
                 const targetY = input.y - 40; 
-                this.x += (input.x - this.x) * 0.15;
-                this.y += (targetY - this.y) * 0.15;
+                this.x += (input.x - this.x) * 0.2; // 稍微靈敏一點
+                this.y += (targetY - this.y) * 0.2;
             }
+            // 邊界防呆
+            if (isNaN(this.x)) this.x = GAME_WIDTH / 2;
+            if (isNaN(this.y)) this.y = GAME_HEIGHT - 50;
+            
             this.x = Math.max(20, Math.min(GAME_WIDTH - 20, this.x));
             this.y = Math.max(20, Math.min(GAME_HEIGHT - 20, this.y));
 
@@ -411,7 +419,6 @@
                 }
             }
             else if (this.weapon === 'LASER') {
-                playSound('SHOOT'); 
                 if (this.weaponLevel === 1) {
                     bullets.push(new Bullet(this.x, this.y - 20, 0, -15, 'PLAYER', 'LASER'));
                 } else if (this.weaponLevel === 2) {
@@ -453,8 +460,9 @@
                 ctx.lineWidth = 3;
                 ctx.beginPath(); ctx.arc(this.x, this.y, 25, 0, Math.PI*2); ctx.stroke();
             }
-            if (Math.random() < 0.5) {
-                particles.push(new Particle(this.x, this.y + 15, '#f1c40f', 0, 2, 10));
+            // 減少粒子產生頻率，優化效能
+            if (frameCount % 4 === 0) {
+                particles.push(new Particle(this.x, this.y + 15, '#f1c40f', 0, 2, 8));
             }
         }
     }
@@ -462,13 +470,11 @@
     class Bullet {
         constructor(x, y, vx, vy, owner, type) {
             this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-            this.owner = owner;
-            this.type = type; 
-            this.active = true;
+            this.owner = owner; this.type = type; this.active = true;
         }
         update() {
             this.x += this.vx; this.y += this.vy;
-            if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) this.active = false;
+            if (this.x < -50 || this.x > GAME_WIDTH + 50 || this.y < -50 || this.y > GAME_HEIGHT + 50) this.active = false;
         }
         draw() {
             if (this.owner === 'PLAYER') {
@@ -511,9 +517,10 @@
                 const dx = this.target.x - this.x;
                 const dy = this.target.y - this.y;
                 const angle = Math.atan2(dy, dx);
-                
                 const currentAngle = Math.atan2(this.vy, this.vx);
                 let diff = angle - currentAngle;
+                
+                // ★★★ 穩定性修復：角度計算 O(1) ★★★
                 diff = (diff + Math.PI) % (Math.PI * 2) - Math.PI;
                 if (diff < -Math.PI) diff += Math.PI * 2; 
 
@@ -525,8 +532,8 @@
             }
 
             this.x += this.vx; this.y += this.vy;
-            if (frameCount % 4 === 0) particles.push(new Particle(this.x, this.y, '#bdc3c7', 0, 1, 10));
-            if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) this.active = false;
+            if (frameCount % 6 === 0) particles.push(new Particle(this.x, this.y, '#bdc3c7', 0, 1, 8)); // 減少煙霧
+            if (this.x < -50 || this.x > GAME_WIDTH + 50 || this.y < -50 || this.y > GAME_HEIGHT + 50) this.active = false;
         }
         draw() {
             const rotation = Math.atan2(this.vy, this.vx) + Math.PI/2;
@@ -538,10 +545,9 @@
         constructor() {
             this.x = GAME_WIDTH / 2;
             this.y = -50;
-            this.w = 80; 
-            this.h = 40;
-            // ★★★ Boss 血量調整：每級增加 80% ★★★
-            this.maxHp = 300 * (1 + (bossLevel-1) * 0.8); 
+            this.w = 80; this.h = 40;
+            // ★★★ 數值調整：Boss血量每級 * 1.8 ★★★
+            this.maxHp = 300 * Math.pow(1.8, (bossLevel-1)); 
             this.hp = this.maxHp;
             this.active = true;
             this.phase = 'ENTER'; 
@@ -573,14 +579,14 @@
                 }
             } 
             else if (this.phase === 'DYING') {
-                if (this.timer % 5 === 0) {
+                if (this.timer % 8 === 0) {
                     createExplosion(this.x + (Math.random()-0.5)*80, this.y + (Math.random()-0.5)*40);
                 }
                 if (this.timer > 120) {
                     this.active = false;
                     bossActive = false;
                     score += 5000;
-                    nextBossScore += BOSS_INTERVAL; 
+                    nextBossScore += BOSS_INTERVAL; // 8萬分間隔
                     bossLevel++;
                     
                     powerups.push(new PowerUp(this.x, this.y, 'HEART'));
@@ -741,8 +747,10 @@
     
     function createExplosion(x, y) {
         playSound('EXPLODE');
-        for(let i=0; i<15; i++) {
-            particles.push(new Particle(x, y, '#e67e22', 4, 20 + Math.random()*10));
+        // ★★★ 限制粒子數量，防止當機 ★★★
+        if (particles.length > 150) return; 
+        for(let i=0; i<8; i++) { // 減少單次爆炸粒子數
+            particles.push(new Particle(x, y, '#e67e22', 4, 15 + Math.random()*10));
         }
     }
 
@@ -780,8 +788,15 @@
         playSound('BOMB');
         flashOverlay.style.opacity = 1;
         setTimeout(() => flashOverlay.style.opacity = 0, 200);
+        
+        // 炸彈只清除螢幕上的敵人，不無限遞迴
         enemies.forEach(e => {
-            if (e.active) { e.hp = 0; e.hit(); }
+            if (e.active) { 
+                e.hp = 0; 
+                e.active = false;
+                score += 500;
+                createExplosion(e.x, e.y);
+            }
         });
         bullets.forEach(b => { if (b.owner === 'ENEMY') b.active = false; });
         if (boss && boss.active && boss.phase === 'FIGHT') {
@@ -804,7 +819,7 @@
                     if (b.type === 'LASER') dmg = 3;
                     if (b.type === 'MISSILE') { dmg = 2; createExplosion(b.x, b.y); }
                     e.hit(dmg);
-                    particles.push(new Particle(b.x, b.y, '#fff', 2, 5));
+                    if (particles.length < 150) particles.push(new Particle(b.x, b.y, '#fff', 2, 5));
                 }
             });
 
@@ -815,7 +830,7 @@
                     if (b.type === 'LASER') dmg = 3;
                     if (b.type === 'MISSILE') { dmg = 2; createExplosion(b.x, b.y); }
                     boss.hit(dmg);
-                    particles.push(new Particle(b.x, b.y, '#fff', 2, 5));
+                    if (particles.length < 150) particles.push(new Particle(b.x, b.y, '#fff', 2, 5));
                 }
             }
         });
@@ -826,7 +841,6 @@
                 p.active = false;
                 playSound('POWERUP');
                 
-                // ★★★ 道具效果與文字提示 ★★★
                 if (p.type === 'BOMB') {
                     activateBomb();
                     textPopups.push(new FloatingText(player.x, player.y - 30, "BOMB!!!", "#e74c3c"));
@@ -854,7 +868,6 @@
                         textPopups.push(new FloatingText(player.x, player.y - 30, `${p.type} EQUIP!`, "#f1c40f"));
                     }
                 }
-                
                 score += 200;
                 updateUI();
             }
@@ -893,11 +906,8 @@
         lives--;
         createExplosion(player.x, player.y);
         player.invincible = 120;
-        
-        // 死亡懲罰
         player.weaponLevel = Math.max(1, player.weaponLevel - 1); 
         player.missileLevel = Math.max(0, player.missileLevel - 1);
-        
         updateUI();
         if (lives <= 0) gameOver();
     }
@@ -955,10 +965,7 @@
         player.update(); player.draw();
         
         spawnEnemy();
-        if (boss && boss.active) {
-            boss.update();
-            boss.draw();
-        }
+        if (boss && boss.active) { boss.update(); boss.draw(); }
         
         enemies.forEach(e => { e.update(); e.draw(); });
         bullets.forEach(b => { b.update(); b.draw(); });
@@ -971,7 +978,8 @@
         powerups = powerups.filter(p => p.active);
         textPopups = textPopups.filter(t => t.life > 0);
         
-        if (particles.length > 200) particles.splice(0, particles.length - 200);
+        // ★★★ 強制清理粒子，避免記憶體溢出 ★★★
+        if (particles.length > 150) particles.splice(0, particles.length - 150);
         particles = particles.filter(p => p.life > 0);
 
         checkCollisions();
