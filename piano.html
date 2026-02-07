@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Piano Tiles: Pro Review Version</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #050505; overflow: hidden; font-family: 'Arial Black', sans-serif; touch-action: none; }
+        #game-container { position: relative; width: 100%; height: 100%; max-width: 600px; margin: 0 auto; background: linear-gradient(to bottom, #111 0%, #000 100%); box-shadow: 0 0 50px rgba(0,255,255,0.1); }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* UI 層 */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+        
+        .hud-top { width: 100%; padding: 20px; display: flex; justify-content: space-between; box-sizing: border-box; z-index: 10; }
+        .score { color: #fff; font-size: 28px; text-shadow: 0 0 10px #0ff; }
+        .combo-box { text-align: center; margin-top: 50px; opacity: 0; transition: opacity 0.2s; }
+        .combo-num { font-size: 60px; color: #ffeb3b; -webkit-text-stroke: 2px #b2a300; display: block; line-height: 1; transform: scale(1); }
+        .combo-text { font-size: 16px; color: #fff; letter-spacing: 2px; }
+        
+        /* 浮動判定文字 */
+        .feedback { position: absolute; font-size: 40px; font-weight: bold; animation: popUp 0.5s ease-out forwards; text-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 20; }
+        @keyframes popUp { 0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; } 50% { transform: translate(-50%, -20px) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -40px) scale(1); opacity: 0; } }
+        
+        .perfect { color: #00ffea; }
+        .good { color: #00ff00; }
+        .miss { color: #ff004c; }
+
+        /* 開始按鈕 */
+        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 100; backdrop-filter: blur(5px); }
+        button { padding: 15px 50px; font-size: 24px; background: #0ff; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; box-shadow: 0 0 20px #0ff; letter-spacing: 2px; text-transform: uppercase; }
+        button:active { transform: scale(0.95); background: #fff; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="score">SCORE: <span id="score-val">0</span></div>
+        </div>
+        <div class="combo-box" id="combo-box">
+            <span class="combo-num" id="combo-val">0</span>
+            <span class="combo-text">COMBO</span>
+        </div>
+    </div>
+    <div id="start-screen">
+        <button id="start-btn">START</button>
+        <p style="color:#666; margin-top:10px; font-size: 12px;">Headphones Recommended</p>
+    </div>
+</div>
+
+<script>
+    // --- 系統變數 ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const uiLayer = document.getElementById('ui-layer');
+    const scoreVal = document.getElementById('score-val');
+    const comboBox = document.getElementById('combo-box');
+    const comboVal = document.getElementById('combo-val');
+
+    // --- 遊戲狀態 ---
+    let gameState = 'MENU';
+    let startTime = 0;
+    let score = 0;
+    let combo = 0;
+    let notes = [];
+    let particles = [];
+    let feedbacks = []; // 存放判定文字
+    
+    // --- 配置參數 ---
+    const CONFIG = {
+        LANE_COUNT: 4,
+        SPEED_BASE: 0.0015, // 速度相對於螢幕高度
+        HIT_Y_RATIO: 0.85,
+        PERFECT_WINDOW: 50, // ms
+        GOOD_WINDOW: 120,   // ms
+        COLORS: ['#ff0055', '#00ccff', '#ffcc00', '#00ffaa'] // 不同軌道稍微不同色
+    };
+
+    let metrics = { w: 0, h: 0, laneW: 0, hitY: 0, speed: 0 };
+
+    // --- 審查修正 1: 高清屏適配 (Retina Support) ---
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        
+        // 縮放 Context，讓我們後續繪圖可以使用 CSS 像素單位
+        ctx.scale(dpr, dpr);
+        
+        metrics.w = rect.width;
+        metrics.h = rect.height;
+        metrics.laneW = metrics.w / CONFIG.LANE_COUNT;
+        metrics.hitY = metrics.h * CONFIG.HIT_Y_RATIO;
+        metrics.speed = metrics.h * CONFIG.SPEED_BASE;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- 音效系統 (Web Audio) ---
+    let audioCtx;
+    const FREQS = [261.63, 293.66, 329.63, 349.23]; // C D E F
+    
+    function initAudio() {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSound(lane) {
+        if(!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.frequency.value = FREQS[lane % 4] * (1 + Math.floor(lane/4)); // 簡單音高變化
+        osc.type = 'triangle';
+        
+        // 審查修正: 優化音量包絡，避免爆音
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // --- 視覺特效類 ---
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random() - 0.5) * 10;
+            this.vy = (Math.random() - 0.5) * 10;
+            this.life = 1;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
+        draw(ctx) {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    // --- 遊戲邏輯 ---
+    // 無限生成譜面邏輯
+    let nextSpawnTime = 0;
+    function spawnNoteLogic(currentTime) {
+        if (currentTime > nextSpawnTime) {
+            const lane = Math.floor(Math.random() * 4);
+            // 根據 Combo 數增加難度 (速度不變，密度增加)
+            const gap = Math.max(200, 800 - (combo * 10)); 
+            
+            notes.push({
+                lane: lane,
+                spawnTime: currentTime,
+                y: -100, // 初始位置
+                hit: false,
+                missed: false,
+                color: CONFIG.COLORS[lane]
+            });
+            nextSpawnTime = currentTime + gap;
+        }
+    }
+
+    function updatePhysics() {
+        // 音符移動
+        notes.forEach(n => {
+            if(n.hit || n.missed) return;
+            n.y += metrics.speed * 16; // *16 是為了適配 60fps 的 delta time
+            
+            // 審查修正 2: 明確的 Miss 判定
+            if (n.y > metrics.h) {
+                n.missed = true;
+                combo = 0; // 斷連
+                updateComboUI();
+                showFeedback(n.lane * metrics.laneW + metrics.laneW/2, metrics.h - 50, 'MISS', 'miss');
+            }
+        });
+        
+        // 清理記憶體
+        notes = notes.filter(n => !n.missed && !n.hit);
+        particles = particles.filter(p => p.life > 0);
+    }
+
+    // --- 輸入判定 (核心) ---
+    function checkHit(lane) {
+        initAudio();
+        playSound(lane);
+        
+        // 尋找判定區內的音符
+        // 判定區間：判定線上下 150px
+        const target = notes.find(n => n.lane === lane && !n.hit && Math.abs(n.y - metrics.hitY) < 150);
+        
+        const x = lane * metrics.laneW + metrics.laneW/2;
+        
+        if (target) {
+            const dist = Math.abs(target.y - metrics.hitY);
+            target.hit = true;
+            
+            // 審查修正 3: Perfect/Good 分級
+            if (dist < 40) { // 非常精準
+                score += 100;
+                combo++;
+                showFeedback(x, metrics.hitY, 'PERFECT', 'perfect');
+                createExplosion(x, metrics.hitY, target.color);
+            } else { // 普通
+                score += 50;
+                combo++;
+                showFeedback(x, metrics.hitY, 'GOOD', 'good');
+                createExplosion(x, metrics.hitY, '#fff'); // 普通是白色火花
+            }
+        } else {
+            // 空揮不扣分，但這是一個設計選擇
+        }
+        updateComboUI();
+        scoreVal.innerText = score;
+    }
+
+    function createExplosion(x, y, color) {
+        for(let i=0; i<8; i++) particles.push(new Particle(x, y, color));
+    }
+
+    function showFeedback(x, y, text, type) {
+        const el = document.createElement('div');
+        el.className = `feedback ${type}`;
+        el.innerText = text;
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        uiLayer.appendChild(el);
+        setTimeout(() => el.remove(), 500);
+    }
+
+    function updateComboUI() {
+        if(combo > 2) {
+            comboBox.style.opacity = 1;
+            comboVal.innerText = combo;
+            // Combo 跳動動畫
+            comboVal.style.transform = 'scale(1.5)';
+            setTimeout(() => comboVal.style.transform = 'scale(1)', 100);
+        } else {
+            comboBox.style.opacity = 0;
+        }
+    }
+
+    // --- 輸入監聽 ---
+    const keys = ['d', 'f', 'j', 'k'];
+    document.addEventListener('keydown', e => {
+        if(e.repeat) return;
+        const idx = keys.indexOf(e.key.toLowerCase());
+        if(idx > -1) checkHit(idx);
+    });
+
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        for(let i=0; i<e.touches.length; i++) {
+            const t = e.touches[i];
+            const lane = Math.floor((t.clientX / metrics.w) * 4);
+            if(lane >= 0 && lane < 4) checkHit(lane);
+        }
+    }, {passive: false});
+
+    // --- 主循環 ---
+    function loop() {
+        if(gameState !== 'PLAYING') return;
+        
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; // 拖尾效果，增加速度感
+        ctx.fillRect(0, 0, metrics.w, metrics.h);
+
+        const now = Date.now();
+        spawnNoteLogic(now);
+        updatePhysics();
+
+        // 繪製軌道線
+        ctx.strokeStyle = '#222';
+        ctx.beginPath();
+        for(let i=1; i<4; i++) {
+            ctx.moveTo(i*metrics.laneW, 0); ctx.lineTo(i*metrics.laneW, metrics.h);
+        }
+        ctx.stroke();
+
+        // 繪製判定線
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, metrics.hitY); ctx.lineTo(metrics.w, metrics.hitY);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // 繪製音符
+        notes.forEach(n => {
+            if(n.hit) return;
+            // 簡單的霓虹方塊
+            ctx.fillStyle = n.color;
+            ctx.shadowBlur = 15; ctx.shadowColor = n.color;
+            ctx.fillRect(n.lane * metrics.laneW + 5, n.y, metrics.laneW - 10, metrics.h * 0.15);
+            ctx.shadowBlur = 0;
+            
+            // 內部高光
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillRect(n.lane * metrics.laneW + 5, n.y, metrics.laneW - 10, 10);
+        });
+
+        // 繪製粒子
+        particles.forEach(p => { p.update(); p.draw(ctx); });
+
+        requestAnimationFrame(loop);
+    }
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+        document.getElementById('start-screen').style.display = 'none';
+        gameState = 'PLAYING';
+        initAudio();
+        loop();
+    });
+
+</script>
+</body>
+</html>
