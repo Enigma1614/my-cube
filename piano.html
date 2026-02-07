@@ -139,8 +139,7 @@
         <div class="hud">
             <div class="life-group">
                 <div style="font-size: 12px; color: #888; font-weight: bold;">ENERGY</div>
-                <div class="life-bar" id="life-container">
-                    </div>
+                <div class="life-bar" id="life-container"></div>
             </div>
             <div class="score-group">
                 <div class="score-label">SCORE</div>
@@ -211,25 +210,50 @@
     // 實體
     let notes = [];
     let particles = [];
-    let laneEffects = [0,0,0,0]; // 軌道光柱強度 0~1
+    let laneEffects = [0,0,0,0]; 
     
     // 時間控制
     let nextSpawnTime = 0;
 
-    /** ================= 難度配置 (經過審查優化：方塊更多) ================= **/
+    // 粒子類別 (修正Bug的關鍵)
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random() - 0.5) * 12;
+            this.vy = (Math.random() - 0.5) * 12;
+            this.life = 1.0;
+            this.size = Math.random() * 5 + 3;
+            this.decay = Math.random() * 0.03 + 0.02;
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += 0.5; // 重力
+            this.life -= this.decay;
+        }
+        draw(ctx) {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); 
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); 
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    /** ================= 難度配置 ================= **/
     const CONFIG = {
         LANE_COUNT: 4,
         HIT_Y_RATIO: 0.85,
-        COLORS: ['#ff0055', '#00e5ff', '#ffcc00', '#00ff66'], // Neon Palette
+        COLORS: ['#ff0055', '#00e5ff', '#ffcc00', '#00ff66'], 
         BASE_SPEED: 0.001
     };
 
-    // 審查修正：大幅縮短 gap，並增加多押機率
     const DIFFICULTIES = {
-        'EASY':   { speedMod: 1.0, gap: 500,  multiChance: 0.0 }, // 已經很快了
+        'EASY':   { speedMod: 1.0, gap: 500,  multiChance: 0.0 }, 
         'NORMAL': { speedMod: 1.4, gap: 400,  multiChance: 0.1 }, 
-        'HARD':   { speedMod: 1.8, gap: 300,  multiChance: 0.3 }, // 30% 機率雙押
-        'INSANE': { speedMod: 2.5, gap: 180,  multiChance: 0.5 }  // 50% 機率多押，極限密度
+        'HARD':   { speedMod: 1.8, gap: 300,  multiChance: 0.3 }, 
+        'INSANE': { speedMod: 2.5, gap: 180,  multiChance: 0.5 }
     };
 
     let currentDiffSetting = DIFFICULTIES['NORMAL'];
@@ -255,7 +279,6 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // 繪製血條
     function renderLifeBar() {
         lifeContainer.innerHTML = '';
         for(let i=0; i<MAX_LIFE; i++) {
@@ -263,8 +286,6 @@
             pip.className = `life-pip ${i < life ? 'active' : ''}`;
             lifeContainer.appendChild(pip);
         }
-        
-        // 瀕死警告
         if (life <= 3 && life > 0) {
             dangerOverlay.classList.add('danger-active');
         } else {
@@ -274,7 +295,6 @@
 
     /** ================= 音效系統 (MAX Volume) ================= **/
     let audioCtx;
-    // 使用更豐富的和弦音階
     const FREQS = [261.63, 311.13, 392.00, 523.25]; // Cm7
     
     function initAudio() {
@@ -285,28 +305,22 @@
     function playSound(lane, type) {
         if(!audioCtx) return;
         
-        // 1. 主音源 (Sawtooth for impact)
         const osc = audioCtx.createOscillator();
         osc.type = 'sawtooth';
         
-        // Perfect 音調高八度
         let freq = FREQS[lane % 4];
         if (type === 'PERFECT') freq *= 2;
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
 
-        // 2. 副音源 (Sine for body - 讓聲音更厚實)
         const subOsc = audioCtx.createOscillator();
         subOsc.type = 'sine';
-        subOsc.frequency.setValueAtTime(freq / 2, audioCtx.currentTime); // 低八度
+        subOsc.frequency.setValueAtTime(freq / 2, audioCtx.currentTime);
 
-        // Gain Node (音量控制)
         const gain = audioCtx.createGain();
-        // ★★★ 審查重點：音量全開 ★★★
-        const maxVol = 0.8; // 總合不要超過 1.0 避免爆音
+        const maxVol = 0.8; 
         gain.gain.setValueAtTime(maxVol, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
 
-        // 連接
         osc.connect(gain);
         subOsc.connect(gain);
         gain.connect(audioCtx.destination);
@@ -322,7 +336,6 @@
         currentDiffSetting = DIFFICULTIES[diff];
         metrics.speed = metrics.h * CONFIG.BASE_SPEED * currentDiffSetting.speedMod;
         
-        // 重置狀態
         score = 0;
         combo = 0;
         life = MAX_LIFE;
@@ -331,7 +344,6 @@
         nextSpawnTime = Date.now();
         gameState = 'PLAYING';
         
-        // UI 更新
         scoreValEl.innerText = '0';
         renderLifeBar();
         startScreen.style.opacity = 0;
@@ -343,27 +355,21 @@
 
     function spawnLogic(now) {
         if (now > nextSpawnTime) {
-            // 基礎間隔
             let gap = currentDiffSetting.gap;
-            // 隨著 Combo 加速 (最高快 20%)
             gap *= (1 - Math.min(combo * 0.002, 0.2));
 
-            // 生成第一個音符
             const lane1 = Math.floor(Math.random() * 4);
             createNote(lane1, now);
 
-            // ★ 多押檢定 (Multi-Note Logic) ★
             if (Math.random() < currentDiffSetting.multiChance) {
-                let lane2 = (lane1 + 1 + Math.floor(Math.random() * 3)) % 4; // 確保不同軌道
+                let lane2 = (lane1 + 1 + Math.floor(Math.random() * 3)) % 4;
                 createNote(lane2, now);
                 
-                // INSANE 模式極小機率出現三押
                 if (currentDiffSetting.multiChance > 0.4 && Math.random() < 0.3) {
                      let lane3 = (lane1 + 2) % 4;
                      if (lane3 !== lane2) createNote(lane3, now);
                 }
             }
-            
             nextSpawnTime = now + gap;
         }
     }
@@ -371,7 +377,7 @@
     function createNote(lane, time) {
         notes.push({
             lane: lane,
-            y: -150, // 從畫面外生成
+            y: -150,
             color: CONFIG.COLORS[lane],
             hit: false,
             missed: false
@@ -381,27 +387,21 @@
     function updatePhysics() {
         notes.forEach(n => {
             if (n.hit || n.missed) return;
-            n.y += metrics.speed * 16; // *16 正規化 Delta Time
-
-            // Miss 判定
+            n.y += metrics.speed * 16; 
             if (n.y > metrics.h) {
                 n.missed = true;
                 handleMiss(n.lane);
             }
         });
         
-        // 清理
         notes = notes.filter(n => !n.hit && !n.missed);
         
-        // 粒子物理
+        // 粒子更新 (修正後)
         for (let i = particles.length - 1; i >= 0; i--) {
-            particles[i].x += particles[i].vx;
-            particles[i].y += particles[i].vy;
-            particles[i].life -= 0.02;
+            particles[i].update();
             if (particles[i].life <= 0) particles.splice(i, 1);
         }
 
-        // 光柱淡出
         for (let i=0; i<4; i++) {
             if (laneEffects[i] > 0) laneEffects[i] -= 0.1;
         }
@@ -413,7 +413,6 @@
         renderLifeBar();
         updateComboUI();
         
-        // 畫面震動特效
         gameContainer.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
         setTimeout(() => gameContainer.style.transform = 'none', 50);
 
@@ -425,11 +424,9 @@
     function handleHit(lane) {
         if (gameState !== 'PLAYING') return;
 
-        // 視覺回饋：軌道亮起
         laneEffects[lane] = 1.0;
 
-        // 判定邏輯
-        const hitZone = 150; // 寬容度
+        const hitZone = 150;
         const target = notes.find(n => n.lane === lane && !n.hit && Math.abs(n.y - metrics.hitY) < hitZone);
         
         if (target) {
@@ -439,14 +436,12 @@
             const y = metrics.hitY;
 
             if (dist < 50) {
-                // Perfect
                 score += 100;
                 combo++;
                 playSound(lane, 'PERFECT');
                 showFeedback(x, y, 'PERFECT', 'perfect');
                 spawnParticles(x, y, target.color, 15);
             } else {
-                // Good
                 score += 50;
                 combo++;
                 playSound(lane, 'GOOD');
@@ -458,16 +453,10 @@
         }
     }
 
+    // 修正後的粒子生成 (使用 Class)
     function spawnParticles(x, y, color, count) {
         for(let i=0; i<count; i++) {
-            particles.push({
-                x: x, y: y,
-                vx: (Math.random() - 0.5) * 10,
-                vy: (Math.random() - 0.5) * 10,
-                color: color,
-                life: 1.0,
-                size: Math.random() * 5 + 2
-            });
+            particles.push(new Particle(x, y, color));
         }
     }
 
@@ -475,12 +464,10 @@
         const el = document.createElement('div');
         el.className = `feedback ${type}`;
         el.innerText = text;
-        // 隨機旋轉一點點
         const rot = (Math.random() - 0.5) * 20;
         el.style.left = x + 'px';
         el.style.top = y + 'px';
         el.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
-        
         uiLayer.appendChild(el);
         setTimeout(() => el.remove(), 500);
     }
@@ -543,7 +530,7 @@
         spawnLogic(now);
         updatePhysics();
 
-        // 1. 繪製軌道光束 (Additive Blending)
+        // 1. 光束
         ctx.globalCompositeOperation = 'lighter';
         for(let i=0; i<4; i++) {
             if(laneEffects[i] > 0) {
@@ -559,7 +546,7 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
 
-        // 2. 軌道分隔線
+        // 2. 軌道分隔
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -569,7 +556,7 @@
         }
         ctx.stroke();
 
-        // 3. 判定線 (發光)
+        // 3. 判定線
         ctx.shadowBlur = 15; ctx.shadowColor = '#00e5ff';
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3;
@@ -581,28 +568,19 @@
         // 4. 音符
         notes.forEach(n => {
             if (n.hit) return;
-            
-            // 霓虹光暈
             ctx.shadowBlur = 20; ctx.shadowColor = n.color;
             ctx.fillStyle = n.color;
-            
-            // 方塊主體
             const pad = 4;
             const w = metrics.laneW - pad*2;
             const h = metrics.h * 0.12;
             ctx.fillRect(n.lane * metrics.laneW + pad, n.y, w, h);
-            
-            // 高光條 (立體感)
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.fillRect(n.lane * metrics.laneW + pad, n.y, w, 10);
-            
             ctx.shadowBlur = 0;
         });
 
         // 5. 粒子
-        particles.forEach(p => {
-            p.draw(ctx);
-        });
+        particles.forEach(p => { p.draw(ctx); });
 
         requestAnimationFrame(loop);
     }
