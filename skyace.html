@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SKY ACE 1945 | 像素空戰</title>
+    <title>SKY ACE 1945 | 道具強化版</title>
     <style>
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
@@ -14,14 +14,14 @@
 
         #game-stage {
             position: relative; width: 100%; height: 100%; max-width: 600px; margin: 0 auto;
-            background: #004477; /* 深海藍背景 */
+            background: #004477; 
             overflow: hidden;
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
         canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 
-        /* CRT 復古掃描線特效 */
+        /* CRT 特效 */
         #scanlines {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
@@ -39,7 +39,14 @@
 
         .hud-top { display: flex; justify-content: space-between; color: #fff; text-shadow: 2px 2px 0 #000; }
         .score-box { font-size: 24px; font-weight: bold; }
-        .life-box { font-size: 24px; color: #ff3b30; }
+        .life-box { font-size: 24px; color: #ff3b30; letter-spacing: 5px; }
+
+        /* 全螢幕閃光 (Bomb特效用) */
+        #flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #fff; opacity: 0; pointer-events: none; z-index: 15;
+            transition: opacity 0.1s;
+        }
 
         /* 開始畫面 */
         #start-screen {
@@ -61,10 +68,8 @@
         }
         .btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #7f261c; }
 
-        /* 遊戲結束 */
         #game-over-ui { display: none; flex-direction: column; align-items: center; }
 
-        /* 返回首頁 */
         .home-btn {
             position: fixed; top: 15px; left: 15px; z-index: 200; pointer-events: auto;
             text-decoration: none; font-size: 24px; width: 40px; height: 40px;
@@ -80,6 +85,7 @@
 <div id="game-stage">
     <canvas id="gameCanvas"></canvas>
     <div id="scanlines"></div>
+    <div id="flash-overlay"></div>
 
     <div id="ui-layer">
         <div class="hud-top">
@@ -105,24 +111,20 @@
 </div>
 
 <script>
-    /** ================= 1. 引擎與設定 (Engine Setup) ================= **/
+    /** ================= 1. 引擎與設定 ================= **/
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const flashOverlay = document.getElementById('flash-overlay');
     
-    // 遊戲解析度 (低解析度像素風，自動拉伸)
     const GAME_WIDTH = 300;
     const GAME_HEIGHT = 500;
     
-    // 狀態
     let gameState = 'MENU';
     let score = 0;
     let lives = 3;
     let frameCount = 0;
-    
-    // 輸入狀態
     let input = { x: GAME_WIDTH / 2, y: GAME_HEIGHT - 50, active: false };
     
-    // 實體池
     let player;
     let bullets = [];
     let enemies = [];
@@ -130,8 +132,7 @@
     let powerups = [];
     let clouds = [];
 
-    // 位圖數據 (1=Color, 0=Transparent)
-    // 簡單的 8x8 或 10x10 像素圖
+    // 像素圖定義
     const SPRITES = {
         PLAYER: [
             [0,0,0,1,0,0,0],
@@ -142,60 +143,58 @@
             [0,0,1,2,1,0,0],
             [0,1,1,0,1,1,0]
         ],
-        ENEMY_SMALL: [ // 自殺機
+        ENEMY_SMALL: [
             [0,0,1,1,1,0,0],
             [0,1,1,1,1,1,0],
             [1,1,0,1,0,1,1],
             [0,0,0,1,0,0,0],
             [0,0,1,0,1,0,0]
         ],
-        ENEMY_SHOOTER: [ // 射擊機
+        ENEMY_SHOOTER: [
             [0,1,0,0,0,1,0],
             [1,1,1,1,1,1,1],
             [0,1,1,2,1,1,0],
             [0,0,1,2,1,0,0],
             [0,0,0,1,0,0,0]
         ],
-        BULLET_P: [ // 玩家子彈
-            [1,2],
-            [1,2],
-            [1,2]
+        BULLET_P: [[1,2],[1,2],[1,2]],
+        BULLET_E: [[2,1,2],[1,1,1],[2,1,2]],
+        BULLET_LASER: [[1],[2],[1],[2],[1]], // 雷射長條
+        
+        // --- 新增道具圖示 ---
+        ITEM_DOUBLE: [ // P
+            [1,1,1], [1,0,1], [1,1,1], [1,0,0], [1,0,0]
         ],
-        BULLET_E: [ // 敵人子彈
-            [2,1,2],
-            [1,1,1],
-            [2,1,2]
+        ITEM_SPREAD: [ // W
+            [1,0,1], [1,0,1], [1,1,1], [1,1,1], [1,0,1]
         ],
-        POWERUP: [
-            [1,1,1,1,1],
-            [1,2,2,2,1],
-            [1,2,1,2,1], // P letter roughly
-            [1,2,2,2,1],
-            [1,2,0,0,0],
-            [1,2,0,0,0]
+        ITEM_LASER: [ // L
+            [1,0,0], [1,0,0], [1,0,0], [1,0,0], [1,1,1]
+        ],
+        ITEM_BOMB: [ // B
+            [1,1,0], [1,0,1], [1,1,0], [1,0,1], [1,1,0]
+        ],
+        ITEM_SHIELD: [ // S
+            [0,1,1], [1,0,0], [0,1,0], [0,0,1], [1,1,0]
+        ],
+        ITEM_HEART: [ // H
+            [1,0,1], [1,0,1], [1,1,1], [1,0,1], [1,0,1]
         ]
     };
 
-    /** ================= 2. 渲染引擎 (Renderer) ================= **/
+    /** ================= 2. 渲染引擎 ================= **/
     function resize() {
-        const stage = document.getElementById('game-stage');
-        const ratio = stage.clientHeight / stage.clientWidth;
-        
-        // 保持比例
+        // 維持比例
         canvas.width = GAME_WIDTH;
         canvas.height = GAME_HEIGHT;
-        
-        // CSS 會處理拉伸，這裡只需要確保內部邏輯解析度固定
     }
     window.addEventListener('resize', resize);
     resize();
 
-    // 繪製像素圖
     function drawSprite(ctx, sprite, cx, cy, colors, scale = 1) {
         const rows = sprite.length;
         const cols = sprite[0].length;
-        // ★★★ 關鍵修改：像素基礎大小從 2 改為 3 或 4，讓物件變大 ★★★
-        const pixelSize = 3 * scale; 
+        const pixelSize = 3 * scale;
         
         const w = cols * pixelSize;
         const h = rows * pixelSize;
@@ -206,15 +205,14 @@
             for(let c=0; c<cols; c++) {
                 const val = sprite[r][c];
                 if (val > 0) {
-                    ctx.fillStyle = colors[val-1]; // 1=colors[0], 2=colors[1]
+                    ctx.fillStyle = colors[val-1];
                     ctx.fillRect(startX + c*pixelSize, startY + r*pixelSize, pixelSize, pixelSize);
                 }
             }
         }
-        return { w, h };
     }
 
-    /** ================= 3. 音效合成 (Audio Synth) ================= **/
+    /** ================= 3. 音效合成 ================= **/
     let audioCtx;
     function initAudio() {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -228,117 +226,134 @@
         const now = audioCtx.currentTime;
 
         if (type === 'SHOOT') {
-            // 玩家射擊：快速脈衝
             osc.type = 'square';
             osc.frequency.setValueAtTime(800, now);
             osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(now + 0.1);
-        } 
-        else if (type === 'ENEMY_SHOOT') {
-            // 敵人射擊
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(200, now);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(now + 0.1);
+        } else if (type === 'LASER') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.2);
             gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(now + 0.15);
-        }
-        else if (type === 'EXPLODE') {
-            // 爆炸：白噪音
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(now + 0.2);
+        } else if (type === 'EXPLODE') {
             const bufferSize = audioCtx.sampleRate * 0.5;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-            
             const noise = audioCtx.createBufferSource();
             noise.buffer = buffer;
-            
-            // 低通濾波
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(1000, now);
             filter.frequency.linearRampToValueAtTime(100, now + 0.3);
-
             gain.gain.setValueAtTime(0.5, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-
-            noise.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
             noise.start();
-        }
-        else if (type === 'POWERUP') {
+        } else if (type === 'POWERUP') {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(400, now);
             osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
             gain.gain.setValueAtTime(0.3, now);
             gain.gain.linearRampToValueAtTime(0, now + 0.3);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(now + 0.3);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(now + 0.3);
+        } else if (type === 'BOMB') {
+             // 轟炸巨響
+            const bufferSize = audioCtx.sampleRate * 1.0;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(500, now);
+            filter.frequency.linearRampToValueAtTime(50, now + 1.0);
+            gain.gain.setValueAtTime(1.0, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start();
         }
     }
 
-    /** ================= 4. 遊戲物件 (Game Objects) ================= **/
+    /** ================= 4. 遊戲物件 ================= **/
     
     class Player {
         constructor() {
             this.x = GAME_WIDTH / 2;
             this.y = GAME_HEIGHT - 80;
-            // 雖然圖變大了，但碰撞箱 (Hitbox) 保持適中，比較好閃子彈
-            this.w = 20; 
-            this.h = 20;
-            this.level = 1; // 火力等級
+            this.w = 20; this.h = 20;
+            
+            // 武器狀態: DEFAULT, DOUBLE, SPREAD, LASER
+            this.weapon = 'DEFAULT';
             this.shootTimer = 0;
             this.invincible = 0;
+            this.shield = false; // 護盾
         }
         update() {
-            // 平滑移動 (Lerp) - 模擬慣性
-            // 如果有輸入，飛向輸入點 (稍微向上偏移一點，因為手指會遮住飛機)
             if (input.active) {
-                const targetY = input.y - 40; // 手指上方多留一點空間
+                const targetY = input.y - 40; 
                 this.x += (input.x - this.x) * 0.15;
                 this.y += (targetY - this.y) * 0.15;
             }
-
-            // 邊界限制
             this.x = Math.max(20, Math.min(GAME_WIDTH - 20, this.x));
             this.y = Math.max(20, Math.min(GAME_HEIGHT - 20, this.y));
 
-            // 自動射擊
+            // 射速控制
+            let fireRate = 8;
+            if (this.weapon === 'LASER') fireRate = 12; // 雷射慢一點但痛
+            if (this.weapon === 'SPREAD') fireRate = 10;
+
             this.shootTimer++;
-            if (this.shootTimer > 8) { // 射速
+            if (this.shootTimer > fireRate) {
                 this.shoot();
                 this.shootTimer = 0;
             }
-
             if (this.invincible > 0) this.invincible--;
         }
         shoot() {
-            playSound('SHOOT');
-            // 子彈位置根據飛機寬度調整
-            if (this.level === 1) {
-                bullets.push(new Bullet(this.x, this.y - 15, 0, -8, 'PLAYER'));
-            } else {
-                // 雙排火力
-                bullets.push(new Bullet(this.x - 8, this.y - 15, 0, -8, 'PLAYER'));
-                bullets.push(new Bullet(this.x + 8, this.y - 15, 0, -8, 'PLAYER'));
+            if (this.weapon === 'DEFAULT') {
+                playSound('SHOOT');
+                bullets.push(new Bullet(this.x, this.y - 15, 0, -8, 'PLAYER', 'NORMAL'));
+            } 
+            else if (this.weapon === 'DOUBLE') {
+                playSound('SHOOT');
+                bullets.push(new Bullet(this.x - 8, this.y - 15, 0, -8, 'PLAYER', 'NORMAL'));
+                bullets.push(new Bullet(this.x + 8, this.y - 15, 0, -8, 'PLAYER', 'NORMAL'));
+            }
+            else if (this.weapon === 'SPREAD') {
+                playSound('SHOOT');
+                bullets.push(new Bullet(this.x, this.y - 15, 0, -8, 'PLAYER', 'NORMAL'));
+                bullets.push(new Bullet(this.x, this.y - 15, -3, -7, 'PLAYER', 'NORMAL')); // 左斜
+                bullets.push(new Bullet(this.x, this.y - 15, 3, -7, 'PLAYER', 'NORMAL'));  // 右斜
+            }
+            else if (this.weapon === 'LASER') {
+                playSound('LASER');
+                // 雷射速度極快
+                bullets.push(new Bullet(this.x, this.y - 20, 0, -15, 'PLAYER', 'LASER'));
             }
         }
         draw() {
-            if (this.invincible > 0 && Math.floor(Date.now() / 50) % 2 === 0) return; // 閃爍
-            // ★ 放大倍率 scale = 1.5
+            if (this.invincible > 0 && Math.floor(Date.now() / 50) % 2 === 0) return;
+            
             drawSprite(ctx, SPRITES.PLAYER, this.x, this.y, ['#ecf0f1', '#e74c3c'], 1.5);
             
-            // 噴射火焰特效
+            // 繪製護盾
+            if (this.shield) {
+                ctx.strokeStyle = `rgba(0, 200, 255, ${0.5 + Math.sin(Date.now()*0.01)*0.2})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 25, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
             if (Math.random() < 0.5) {
                 particles.push(new Particle(this.x, this.y + 15, '#f1c40f', 0, 2, 10));
             }
@@ -346,21 +361,25 @@
     }
 
     class Bullet {
-        constructor(x, y, vx, vy, owner) {
+        constructor(x, y, vx, vy, owner, type) {
             this.x = x; this.y = y; this.vx = vx; this.vy = vy;
             this.owner = owner;
+            this.type = type; // NORMAL, LASER
             this.active = true;
         }
         update() {
             this.x += this.vx;
             this.y += this.vy;
-            // 出界移除
             if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) this.active = false;
         }
         draw() {
             if (this.owner === 'PLAYER') {
-                // 子彈稍微放大一點點 (scale 1.2)
-                drawSprite(ctx, SPRITES.BULLET_P, this.x, this.y, ['#f1c40f', '#fff'], 1.2);
+                if (this.type === 'LASER') {
+                    // 雷射比較長，顏色不同
+                    drawSprite(ctx, SPRITES.BULLET_LASER, this.x, this.y, ['#9b59b6', '#fff'], 2.0);
+                } else {
+                    drawSprite(ctx, SPRITES.BULLET_P, this.x, this.y, ['#f1c40f', '#fff'], 1.2);
+                }
             } else {
                 drawSprite(ctx, SPRITES.BULLET_E, this.x, this.y, ['#e74c3c', '#fff'], 1.2);
             }
@@ -377,59 +396,56 @@
             this.timer = 0;
 
             if (type === 'SMALL') {
-                this.vy = 3 + Math.random() * 2; // 快速衝刺
+                this.vy = 3 + Math.random() * 2;
                 this.vx = (Math.random() - 0.5) * 1;
                 this.colors = ['#95a5a6', '#7f8c8d'];
             } else if (type === 'SHOOTER') {
-                this.vy = 1.5;
-                this.vx = 0;
-                this.hp = 3;
+                this.vy = 1.5; this.vx = 0; this.hp = 3;
                 this.colors = ['#2ecc71', '#27ae60'];
             }
         }
         update() {
-            this.y += this.vy;
-            this.x += this.vx;
-            this.timer++;
-
-            // AI 行為
+            this.y += this.vy; this.x += this.vx; this.timer++;
             if (this.type === 'SHOOTER') {
-                // 晃動
                 this.x += Math.sin(this.timer * 0.05) * 1;
-                
-                // 射擊
                 if (this.timer % 100 === 50) {
-                    playSound('ENEMY_SHOOT');
-                    // 瞄準玩家
+                    // playSound('ENEMY_SHOOT'); // 敵人射擊聲音稍微關小或移除以免太吵
                     const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                    const speed = 4;
-                    bullets.push(new Bullet(this.x, this.y, Math.cos(angle)*speed, Math.sin(angle)*speed, 'ENEMY'));
+                    bullets.push(new Bullet(this.x, this.y, Math.cos(angle)*4, Math.sin(angle)*4, 'ENEMY', 'NORMAL'));
                 }
             }
-
             if (this.y > GAME_HEIGHT + 30) this.active = false;
         }
         draw() {
             const sprite = this.type === 'SMALL' ? SPRITES.ENEMY_SMALL : SPRITES.ENEMY_SHOOTER;
-            // ★ 敵機也放大 1.5 倍
             drawSprite(ctx, sprite, this.x, this.y, this.colors, 1.5);
         }
-        hit() {
-            this.hp--;
+        hit(damage = 1) {
+            this.hp -= damage;
             if (this.hp <= 0) {
                 this.active = false;
                 createExplosion(this.x, this.y);
                 score += (this.type === 'SMALL' ? 100 : 300);
                 
-                // 掉落道具 (5% 機率)
-                if (Math.random() < 0.05) {
-                    powerups.push(new PowerUp(this.x, this.y));
+                // 道具掉落機率 (10%)
+                if (Math.random() < 0.1) {
+                    // 隨機掉落一種道具
+                    const types = ['DOUBLE', 'SPREAD', 'LASER', 'BOMB', 'SHIELD', 'HEART'];
+                    // 加權：普通武器多一點，炸彈和補血少一點
+                    const rand = Math.random();
+                    let dropType = 'DOUBLE';
+                    if (rand < 0.3) dropType = 'DOUBLE';
+                    else if (rand < 0.5) dropType = 'SPREAD';
+                    else if (rand < 0.7) dropType = 'LASER';
+                    else if (rand < 0.8) dropType = 'SHIELD';
+                    else if (rand < 0.9) dropType = 'BOMB';
+                    else dropType = 'HEART';
+
+                    powerups.push(new PowerUp(this.x, this.y, dropType));
                 }
             } else {
-                // 受傷閃白
                 ctx.globalCompositeOperation = 'source-atop';
                 ctx.fillStyle = 'white';
-                // 閃白區域也要跟著變大
                 ctx.fillRect(this.x-12, this.y-12, 24, 24);
                 ctx.globalCompositeOperation = 'source-over';
             }
@@ -437,20 +453,26 @@
     }
 
     class PowerUp {
-        constructor(x, y) {
-            this.x = x; this.y = y;
-            this.active = true;
-            this.vy = 1;
+        constructor(x, y, type) {
+            this.x = x; this.y = y; this.type = type;
+            this.active = true; this.vy = 1.5;
         }
         update() {
-            this.y += this.vy;
-            // 左右飄
-            this.x += Math.sin(this.y * 0.05);
+            this.y += this.vy; this.x += Math.sin(this.y * 0.05) * 0.5;
             if (this.y > GAME_HEIGHT) this.active = false;
         }
         draw() {
-            // 道具放大 1.5 倍
-            drawSprite(ctx, SPRITES.POWERUP, this.x, this.y, ['#3498db', '#fff'], 1.5);
+            let sprite, colors;
+            switch(this.type) {
+                case 'DOUBLE': sprite = SPRITES.ITEM_DOUBLE; colors = ['#f1c40f', '#fff']; break;
+                case 'SPREAD': sprite = SPRITES.ITEM_SPREAD; colors = ['#2ecc71', '#fff']; break;
+                case 'LASER':  sprite = SPRITES.ITEM_LASER;  colors = ['#9b59b6', '#fff']; break;
+                case 'BOMB':   sprite = SPRITES.ITEM_BOMB;   colors = ['#e74c3c', '#fff']; break;
+                case 'SHIELD': sprite = SPRITES.ITEM_SHIELD; colors = ['#3498db', '#fff']; break;
+                case 'HEART':  sprite = SPRITES.ITEM_HEART;  colors = ['#ff6b81', '#fff']; break;
+                default: sprite = SPRITES.ITEM_DOUBLE; colors = ['#f1c40f', '#fff'];
+            }
+            drawSprite(ctx, sprite, this.x, this.y, colors, 1.5);
         }
     }
 
@@ -459,15 +481,10 @@
             this.x = x; this.y = y; this.color = color;
             this.vx = (Math.random() - 0.5) * speed;
             this.vy = (Math.random() - 0.5) * speed;
-            this.life = life;
-            this.maxLife = life;
-            this.size = Math.random() * 3 + 2; // 粒子變大
+            this.life = life; this.maxLife = life;
+            this.size = Math.random() * 3 + 2;
         }
-        update() {
-            this.x += this.vx;
-            this.y += this.vy;
-            this.life--;
-        }
+        update() { this.x += this.vx; this.y += this.vy; this.life--; }
         draw() {
             ctx.globalAlpha = this.life / this.maxLife;
             ctx.fillStyle = this.color;
@@ -478,108 +495,138 @@
 
     class Cloud {
         constructor(y) {
-            this.x = Math.random() * GAME_WIDTH;
-            this.y = y;
+            this.x = Math.random() * GAME_WIDTH; this.y = y;
             this.speed = 0.5 + Math.random() * 0.5;
             this.size = 20 + Math.random() * 40;
             this.alpha = 0.1 + Math.random() * 0.2;
         }
         update() {
             this.y += this.speed;
-            if (this.y > GAME_HEIGHT + 50) {
-                this.y = -50;
-                this.x = Math.random() * GAME_WIDTH;
-            }
+            if (this.y > GAME_HEIGHT + 50) { this.y = -50; this.x = Math.random() * GAME_WIDTH; }
         }
         draw() {
             ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
         }
     }
 
-    /** ================= 5. 遊戲邏輯 (Game Logic) ================= **/
+    /** ================= 5. 遊戲邏輯 ================= **/
     
     function createExplosion(x, y) {
         playSound('EXPLODE');
         for(let i=0; i<15; i++) {
             particles.push(new Particle(x, y, '#e67e22', 4, 20 + Math.random()*10));
-            particles.push(new Particle(x, y, '#f1c40f', 3, 10 + Math.random()*10));
         }
     }
 
     function spawnEnemy() {
-        if (frameCount % 60 === 0) { // 每秒一隻
+        if (frameCount % 60 === 0) {
             const rand = Math.random();
             if (rand < 0.7) enemies.push(new Enemy('SMALL'));
             else enemies.push(new Enemy('SHOOTER'));
         }
     }
 
-    function checkCollisions() {
-        // 矩形碰撞檢測
-        const hit = (a, b, dist) => {
-            return Math.abs(a.x - b.x) < dist && Math.abs(a.y - b.y) < dist;
-        };
+    function activateBomb() {
+        playSound('BOMB');
+        // 全螢幕閃光
+        flashOverlay.style.opacity = 1;
+        setTimeout(() => flashOverlay.style.opacity = 0, 200);
 
-        // 子彈打敵人 (判定範圍稍微放大)
+        // 清除所有敵人
+        enemies.forEach(e => {
+            if (e.active) {
+                e.hp = 0; // 直接死亡
+                e.hit();  // 觸發死亡邏輯(分數、爆炸)
+            }
+        });
+        // 清除所有敵方子彈
+        bullets.forEach(b => {
+            if (b.owner === 'ENEMY') b.active = false;
+        });
+    }
+
+    function checkCollisions() {
+        const hit = (a, b, dist) => Math.abs(a.x - b.x) < dist && Math.abs(a.y - b.y) < dist;
+
+        // 子彈打敵人
         bullets.forEach(b => {
             if (!b.active || b.owner !== 'PLAYER') return;
             enemies.forEach(e => {
                 if (!e.active) return;
-                // 敵人變大了，判定距離從 12 改為 18
                 if (hit(b, e, 18)) {
-                    b.active = false;
-                    e.hit();
-                    // 小火花
+                    // 雷射貫穿，不消失；普通子彈消失
+                    if (b.type !== 'LASER') b.active = false;
+                    // 雷射傷害高
+                    e.hit(b.type === 'LASER' ? 3 : 1);
                     particles.push(new Particle(b.x, b.y, '#fff', 2, 5));
                 }
             });
         });
 
-        // 玩家吃道具
+        // 吃道具
         powerups.forEach(p => {
             if (!p.active) return;
-            // 道具變大，判定距離 20
             if (hit(p, player, 20)) {
                 p.active = false;
-                player.level = 2;
                 playSound('POWERUP');
-                score += 500;
+                
+                // 道具效果
+                if (p.type === 'BOMB') {
+                    activateBomb();
+                } else if (p.type === 'SHIELD') {
+                    player.shield = true;
+                } else if (p.type === 'HEART') {
+                    if (lives < 5) lives++; // 上限5
+                    updateUI();
+                } else {
+                    player.weapon = p.type;
+                }
+                
+                // 加分
+                score += 200;
             }
         });
 
-        // 玩家受傷 (撞機或中彈)
+        // 玩家受傷
         if (player.invincible <= 0) {
-            // 撞敵機 (判定距離 18)
+            let getHit = false;
+            
+            // 撞機
             enemies.forEach(e => {
                 if (e.active && hit(player, e, 18)) {
                     e.active = false;
                     createExplosion(e.x, e.y);
-                    takeDamage();
+                    getHit = true;
                 }
             });
-            // 中子彈 (飛機判定點稍微小一點，方便擦彈，設為 10)
+            // 中彈
             bullets.forEach(b => {
                 if (b.active && b.owner === 'ENEMY' && hit(player, b, 10)) {
                     b.active = false;
-                    takeDamage();
+                    getHit = true;
                 }
             });
+
+            if (getHit) {
+                if (player.shield) {
+                    player.shield = false; // 破盾
+                    player.invincible = 60; // 1秒無敵
+                    playSound('EXPLODE'); // 破盾音效
+                } else {
+                    takeDamage();
+                }
+            }
         }
     }
 
     function takeDamage() {
         lives--;
         createExplosion(player.x, player.y);
-        player.invincible = 120; // 2秒無敵
-        player.level = 1; // 掉裝
+        player.invincible = 120;
+        player.weapon = 'DEFAULT'; // 死亡重置武器
         updateUI();
-        
-        if (lives <= 0) {
-            gameOver();
-        }
+        if (lives <= 0) gameOver();
     }
 
     function updateUI() {
@@ -598,60 +645,39 @@
     }
 
     function startGame() {
-        // 重置
         player = new Player();
-        bullets = [];
-        enemies = [];
-        particles = [];
-        powerups = [];
-        score = 0;
-        lives = 3;
-        frameCount = 0;
-        
-        // 初始雲
+        bullets = []; enemies = []; particles = []; powerups = [];
+        score = 0; lives = 3; frameCount = 0;
         clouds = [];
         for(let i=0; i<10; i++) clouds.push(new Cloud(Math.random() * GAME_HEIGHT));
 
         updateUI();
-        
         document.getElementById('start-screen').style.display = 'none';
-        
         initAudio();
         gameState = 'PLAYING';
         loop();
     }
 
-    // --- 主循環 ---
     function loop() {
         if (gameState !== 'PLAYING') return;
-
         ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         frameCount++;
 
-        // 1. 背景雲 (視差效果)
         clouds.forEach(c => { c.update(); c.draw(); });
-
-        // 2. 更新實體
-        player.update();
-        player.draw();
-
+        player.update(); player.draw();
         spawnEnemy();
-
+        
         enemies.forEach(e => { e.update(); e.draw(); });
         bullets.forEach(b => { b.update(); b.draw(); });
         powerups.forEach(p => { p.update(); p.draw(); });
         particles.forEach(p => { p.update(); p.draw(); });
 
-        // 3. 清理無效物件 (Object Pooling 模擬)
         bullets = bullets.filter(b => b.active);
         enemies = enemies.filter(e => e.active);
         powerups = powerups.filter(p => p.active);
         particles = particles.filter(p => p.life > 0);
 
-        // 4. 碰撞
         checkCollisions();
-
-        // 5. UI 更新 (分數)
         if (frameCount % 10 === 0) document.getElementById('score').innerText = score;
 
         requestAnimationFrame(loop);
@@ -660,29 +686,16 @@
     // --- 輸入監聽 ---
     function handleInput(e) {
         if (gameState !== 'PLAYING') return;
-        // e.preventDefault(); // 防止滾動 (如果有需要)
-        
         const rect = canvas.getBoundingClientRect();
         const scaleX = GAME_WIDTH / rect.width;
         const scaleY = GAME_HEIGHT / rect.height;
-
-        let clientX, clientY;
-        if (e.touches) {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
         input.x = (clientX - rect.left) * scaleX;
         input.y = (clientY - rect.top) * scaleY;
         input.active = true;
     }
-
-    function stopInput() {
-        input.active = false;
-    }
+    function stopInput() { input.active = false; }
 
     const stage = document.getElementById('game-stage');
     stage.addEventListener('mousemove', handleInput);
