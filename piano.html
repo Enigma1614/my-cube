@@ -3,427 +3,606 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Piano | 霓虹鋼琴</title>
+    <title>Neon Piano | 極限街機版</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #050505; overflow: hidden; font-family: 'Arial Black', sans-serif; touch-action: none; }
-        #game-container { position: relative; width: 100%; height: 100%; max-width: 600px; margin: 0 auto; background: linear-gradient(to bottom, #111 0%, #000 100%); box-shadow: 0 0 50px rgba(0,255,255,0.1); }
-        canvas { display: block; width: 100%; height: 100%; }
-        
-        /* UI 層 */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
-        
-        .hud-top { width: 100%; padding: 20px 20px 0 20px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; z-index: 10; width: 100%; }
-        .score { color: #fff; font-size: 24px; text-shadow: 0 0 10px #0ff; }
-        
-        /* 生命值顯示 */
-        .life-box { color: #ff3b30; font-size: 24px; text-shadow: 0 0 10px #ff3b30; display: flex; align-items: center; gap: 5px; }
-        
-        .combo-box { text-align: center; margin-top: 30px; opacity: 0; transition: opacity 0.2s; }
-        .combo-num { font-size: 60px; color: #ffeb3b; -webkit-text-stroke: 2px #b2a300; display: block; line-height: 1; transform: scale(1); }
-        .combo-text { font-size: 16px; color: #fff; letter-spacing: 2px; }
-        
-        /* 浮動判定文字 */
-        .feedback { position: absolute; font-size: 40px; font-weight: bold; animation: popUp 0.5s ease-out forwards; text-shadow: 0 2px 5px rgba(0,0,0,0.5); z-index: 20; }
-        @keyframes popUp { 0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; } 50% { transform: translate(-50%, -20px) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -40px) scale(1); opacity: 0; } }
-        
-        .perfect { color: #00ffea; }
-        .good { color: #00ff00; }
-        .miss { color: #ff004c; }
-
-        /* 選單與結算畫面 */
-        #start-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 100; backdrop-filter: blur(8px); transition: opacity 0.3s; }
-        
-        .title { font-size: 40px; color: #fff; margin-bottom: 30px; text-shadow: 0 0 20px #0ff; letter-spacing: 4px; text-align: center; }
-        .final-score { font-size: 20px; color: #aaa; margin-bottom: 30px; display: none; }
-        
-        .diff-container { display: flex; flex-direction: column; gap: 15px; width: 80%; max-width: 300px; }
-        
-        .diff-btn { 
-            padding: 15px; font-size: 20px; color: #fff; border: 2px solid; border-radius: 8px; cursor: pointer; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; background: transparent; transition: all 0.2s;
+        /* === 核心樣式：鎖死觸控，防止縮放 === */
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #000; overflow: hidden; 
+            font-family: 'Segoe UI', 'Roboto', sans-serif; 
+            touch-action: none; user-select: none; -webkit-user-select: none;
         }
         
-        .diff-btn:hover { transform: scale(1.05); }
+        #game-container { 
+            position: relative; width: 100%; height: 100%; max-width: 650px; margin: 0 auto; 
+            background: linear-gradient(to bottom, #120526 0%, #000 100%);
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1); 
+            transition: transform 0.05s;
+        }
+        
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* === 瀕死紅框警告特效 === */
+        #danger-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: inset 0 0 100px rgba(255, 0, 0, 0);
+            pointer-events: none; z-index: 5;
+            transition: box-shadow 0.3s;
+        }
+        .danger-active { animation: dangerPulse 0.8s infinite; }
+        @keyframes dangerPulse { 
+            0%, 100% { box-shadow: inset 0 0 50px rgba(255, 0, 0, 0.3); } 
+            50% { box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.8); } 
+        }
+        
+        /* === UI 層 === */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
+        
+        /* 頂部資訊列 */
+        .hud { 
+            width: 100%; padding: 60px 20px 10px 20px; /* 上方留空間給 Home 鍵 */
+            display: flex; justify-content: space-between; align-items: flex-end; 
+            box-sizing: border-box; z-index: 10;
+        }
+
+        .life-group { text-align: left; }
+        .life-bar { display: flex; gap: 2px; height: 10px; margin-top: 5px; }
+        .life-pip { width: 15px; height: 8px; background: #333; border-radius: 2px; transition: background 0.2s; }
+        .life-pip.active { background: #ff3b30; box-shadow: 0 0 10px #ff3b30; }
+        
+        .score-group { text-align: right; }
+        .score-val { font-size: 36px; color: #fff; font-weight: 900; text-shadow: 0 0 15px #00e5ff; font-family: monospace; line-height: 1; }
+        .score-label { font-size: 10px; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+
+        /* Combo 特效 */
+        .combo-container { 
+            position: absolute; top: 25%; width: 100%; text-align: center; 
+            opacity: 0; transition: opacity 0.1s; transform: scale(0.8);
+        }
+        .combo-num { font-size: 80px; font-weight: 900; color: #fff; -webkit-text-stroke: 2px #bd00ff; font-style: italic; line-height: 0.8; text-shadow: 5px 5px 0px rgba(0,0,0,0.5); }
+        .combo-text { font-size: 20px; color: #bd00ff; letter-spacing: 5px; font-weight: bold; }
+        
+        /* 判定文字 */
+        .feedback { 
+            position: absolute; font-size: 40px; font-weight: 900; z-index: 20; 
+            white-space: nowrap; pointer-events: none; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            animation: floatUp 0.5s ease-out forwards;
+        }
+        @keyframes floatUp { to { transform: translate(-50%, -80px) scale(1.2); opacity: 0; } }
+        
+        .perfect { color: #ffd700; -webkit-text-stroke: 1px #fff; }
+        .good { color: #00ffea; }
+        .miss { color: #ff3b30; font-size: 50px; }
+
+        /* === 按鈕與選單 === */
+        .home-btn {
+            position: absolute; top: 15px; left: 15px; pointer-events: auto; z-index: 200;
+            text-decoration: none; font-size: 24px; color: #fff;
+            width: 44px; height: 44px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px); transition: transform 0.1s;
+        }
+        .home-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+
+        #start-screen { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(5, 5, 10, 0.95); backdrop-filter: blur(15px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 100; transition: opacity 0.3s;
+        }
+        
+        .logo { font-size: 42px; color: #fff; font-weight: 900; letter-spacing: -2px; text-shadow: 0 0 20px #00e5ff; margin-bottom: 5px; font-style: italic; }
+        .tagline { color: #bd00ff; font-size: 14px; margin-bottom: 40px; letter-spacing: 3px; text-transform: uppercase; font-weight: bold; }
+
+        .diff-btn {
+            width: 260px; padding: 18px; margin: 8px 0;
+            background: transparent; border: 2px solid #333; border-radius: 12px;
+            color: #fff; font-size: 18px; font-weight: bold; letter-spacing: 1px;
+            cursor: pointer; position: relative; overflow: hidden; transition: 0.2s;
+            text-transform: uppercase; display: flex; justify-content: space-between; align-items: center;
+        }
+        .diff-btn span { pointer-events: none; }
+        .diff-btn .dots { font-size: 12px; opacity: 0.5; }
+        
         .diff-btn:active { transform: scale(0.95); }
-
-        .btn-easy { border-color: #4cd964; color: #4cd964; box-shadow: 0 0 10px #4cd964; }
-        .btn-easy:hover { background: #4cd964; color: #000; }
-
-        .btn-normal { border-color: #ffd700; color: #ffd700; box-shadow: 0 0 10px #ffd700; }
-        .btn-normal:hover { background: #ffd700; color: #000; }
-
-        .btn-hard { border-color: #ff3b30; color: #ff3b30; box-shadow: 0 0 10px #ff3b30; }
-        .btn-hard:hover { background: #ff3b30; color: #fff; }
-
-        .btn-insane { border-color: #bd00ff; color: #bd00ff; box-shadow: 0 0 15px #bd00ff; animation: pulse 1s infinite alternate; }
-        .btn-insane:hover { background: #bd00ff; color: #fff; }
         
-        @keyframes pulse { from { box-shadow: 0 0 10px #bd00ff; } to { box-shadow: 0 0 25px #bd00ff; } }
-
-        /* 回首頁按鈕 */
-        .home-btn { position: absolute; top: 20px; left: 20px; color: #666; text-decoration: none; font-size: 24px; z-index: 200; pointer-events: auto; }
+        .d-easy { border-color: #00ff66; color: #00ff66; }
+        .d-easy:hover { background: rgba(0,255,102,0.1); box-shadow: 0 0 20px rgba(0,255,102,0.3); }
         
-        /* 遊戲結束後的按鈕 */
-        #restart-container { display: none; width: 100%; flex-direction: column; align-items: center; gap: 15px;}
-        .restart-btn { padding: 12px 40px; background: #fff; color: #000; border: none; font-size: 18px; cursor: pointer; border-radius: 50px; font-weight: bold;}
+        .d-normal { border-color: #00e5ff; color: #00e5ff; }
+        .d-normal:hover { background: rgba(0,229,255,0.1); box-shadow: 0 0 20px rgba(0,229,255,0.3); }
+        
+        .d-hard { border-color: #ffcc00; color: #ffcc00; }
+        .d-hard:hover { background: rgba(255,204,0,0.1); box-shadow: 0 0 20px rgba(255,204,0,0.3); }
+        
+        .d-insane { border-color: #ff0055; color: #ff0055; animation: pulseBorder 1s infinite alternate; }
+        .d-insane:hover { background: rgba(255,0,85,0.1); box-shadow: 0 0 30px rgba(255,0,85,0.5); }
+        @keyframes pulseBorder { from { box-shadow: 0 0 5px #ff0055; } to { box-shadow: 0 0 20px #ff0055; } }
+
+        /* Game Over UI */
+        #game-over-ui { display: none; flex-direction: column; align-items: center; width: 100%; }
+        .final-score { font-size: 70px; font-weight: 900; color: #fff; margin: 10px 0 30px 0; text-shadow: 0 0 30px rgba(255,255,255,0.5); }
+        .menu-btn { padding: 15px 40px; background: #fff; color: #000; border: none; font-size: 20px; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px #fff; }
+
     </style>
 </head>
 <body>
 
+<a href="index.html" class="home-btn">🏠</a>
+
 <div id="game-container">
-    <a href="index.html" class="home-btn" id="home-icon">🏠</a>
     <canvas id="gameCanvas"></canvas>
-    
+    <div id="danger-overlay"></div>
+
     <div id="ui-layer">
-        <div class="hud-top">
-            <div class="score">SCORE: <span id="score-val">0</span></div>
-            <div class="life-box">❤ <span id="life-val">10</span></div>
-        </div>
-        <div class="combo-box" id="combo-box">
-            <span class="combo-num" id="combo-val">0</span>
-            <span class="combo-text">COMBO</span>
-        </div>
-    </div>
-    
-    <div id="start-screen">
-        <div class="title" id="screen-title">SELECT MODE</div>
-        <div class="final-score" id="final-score">Score: 0</div>
-        
-        <div class="diff-container" id="diff-select">
-            <button class="diff-btn btn-easy" onclick="startGame('EASY')">EASY</button>
-            <button class="diff-btn btn-normal" onclick="startGame('NORMAL')">NORMAL</button>
-            <button class="diff-btn btn-hard" onclick="startGame('HARD')">HARD</button>
-            <button class="diff-btn btn-insane" onclick="startGame('INSANE')">INSANE 🔥</button>
+        <div class="hud">
+            <div class="life-group">
+                <div style="font-size: 12px; color: #888; font-weight: bold;">ENERGY</div>
+                <div class="life-bar" id="life-container">
+                    </div>
+            </div>
+            <div class="score-group">
+                <div class="score-label">SCORE</div>
+                <div class="score-val" id="score-val">0</div>
+            </div>
         </div>
 
-        <div id="restart-container">
-            <button class="restart-btn" onclick="resetToMenu()">MENU</button>
+        <div class="combo-container" id="combo-box">
+            <div class="combo-num" id="combo-val">0</div>
+            <div class="combo-text">COMBO</div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <div id="main-menu" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+            <div class="logo">NEON PIANO</div>
+            <div class="tagline">MAX VOLUME EDITION</div>
+            
+            <button class="diff-btn d-easy" onclick="startGame('EASY')">
+                <span>EASY</span> <span class="dots">●</span>
+            </button>
+            <button class="diff-btn d-normal" onclick="startGame('NORMAL')">
+                <span>NORMAL</span> <span class="dots">●●</span>
+            </button>
+            <button class="diff-btn d-hard" onclick="startGame('HARD')">
+                <span>HARD</span> <span class="dots">●●●</span>
+            </button>
+            <button class="diff-btn d-insane" onclick="startGame('INSANE')">
+                <span>INSANE</span> <span class="dots">☠️☠️☠️</span>
+            </button>
+        </div>
+
+        <div id="game-over-ui">
+            <div style="color: #ff3b30; font-size: 30px; font-weight: 900; letter-spacing: 5px;">GAME OVER</div>
+            <div class="final-score" id="final-score">0</div>
+            <button class="menu-btn" onclick="resetToMenu()">MAIN MENU</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 系統變數 ---
+    /** ================= 系統設置 ================= **/
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const uiLayer = document.getElementById('ui-layer');
-    const scoreVal = document.getElementById('score-val');
-    const lifeVal = document.getElementById('life-val');
-    const comboBox = document.getElementById('combo-box');
-    const comboVal = document.getElementById('combo-val');
+    const gameContainer = document.getElementById('game-container');
+    const dangerOverlay = document.getElementById('danger-overlay');
     
+    // UI Elements
+    const uiLayer = document.getElementById('ui-layer');
+    const scoreValEl = document.getElementById('score-val');
+    const lifeContainer = document.getElementById('life-container');
+    const comboBox = document.getElementById('combo-box');
+    const comboValEl = document.getElementById('combo-val');
+    
+    // Screens
     const startScreen = document.getElementById('start-screen');
-    const screenTitle = document.getElementById('screen-title');
-    const diffSelect = document.getElementById('diff-select');
-    const restartContainer = document.getElementById('restart-container');
+    const mainMenu = document.getElementById('main-menu');
+    const gameOverUi = document.getElementById('game-over-ui');
     const finalScoreEl = document.getElementById('final-score');
-    const homeIcon = document.getElementById('home-icon');
 
-    // --- 遊戲狀態變數 ---
-    let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER
+    // 遊戲狀態
+    let gameState = 'MENU';
     let score = 0;
     let combo = 0;
     let life = 10;
-    let maxLife = 10;
+    const MAX_LIFE = 10;
+    
+    // 實體
     let notes = [];
     let particles = [];
-    let nextSpawnTime = 0;
+    let laneEffects = [0,0,0,0]; // 軌道光柱強度 0~1
     
-    // --- 配置參數 (會被難度覆蓋) ---
-    let CONFIG = {
+    // 時間控制
+    let nextSpawnTime = 0;
+
+    /** ================= 難度配置 (經過審查優化：方塊更多) ================= **/
+    const CONFIG = {
         LANE_COUNT: 4,
         HIT_Y_RATIO: 0.85,
-        COLORS: ['#ff0055', '#00ccff', '#ffcc00', '#00ffaa'],
-        SPEED_BASE: 0.0015, 
-        SPAWN_GAP: 800 
+        COLORS: ['#ff0055', '#00e5ff', '#ffcc00', '#00ff66'], // Neon Palette
+        BASE_SPEED: 0.001
     };
 
-    // 難度數據庫
+    // 審查修正：大幅縮短 gap，並增加多押機率
     const DIFFICULTIES = {
-        'EASY':   { speed: 0.0010, gap: 1000 },
-        'NORMAL': { speed: 0.0015, gap: 800 },
-        'HARD':   { speed: 0.0022, gap: 600 },
-        'INSANE': { speed: 0.0035, gap: 350 }
+        'EASY':   { speedMod: 1.0, gap: 500,  multiChance: 0.0 }, // 已經很快了
+        'NORMAL': { speedMod: 1.4, gap: 400,  multiChance: 0.1 }, 
+        'HARD':   { speedMod: 1.8, gap: 300,  multiChance: 0.3 }, // 30% 機率雙押
+        'INSANE': { speedMod: 2.5, gap: 180,  multiChance: 0.5 }  // 50% 機率多押，極限密度
     };
 
+    let currentDiffSetting = DIFFICULTIES['NORMAL'];
     let metrics = { w: 0, h: 0, laneW: 0, hitY: 0, speed: 0 };
 
+    /** ================= 核心與渲染 ================= **/
     function resize() {
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         ctx.scale(dpr, dpr);
+        
         metrics.w = rect.width;
         metrics.h = rect.height;
         metrics.laneW = metrics.w / CONFIG.LANE_COUNT;
         metrics.hitY = metrics.h * CONFIG.HIT_Y_RATIO;
-        metrics.speed = metrics.h * CONFIG.SPEED_BASE;
+        
+        if (gameState === 'PLAYING') {
+            metrics.speed = metrics.h * CONFIG.BASE_SPEED * currentDiffSetting.speedMod;
+        }
     }
     window.addEventListener('resize', resize);
     resize();
 
-    // --- 音效系統 (Web Audio) ---
+    // 繪製血條
+    function renderLifeBar() {
+        lifeContainer.innerHTML = '';
+        for(let i=0; i<MAX_LIFE; i++) {
+            const pip = document.createElement('div');
+            pip.className = `life-pip ${i < life ? 'active' : ''}`;
+            lifeContainer.appendChild(pip);
+        }
+        
+        // 瀕死警告
+        if (life <= 3 && life > 0) {
+            dangerOverlay.classList.add('danger-active');
+        } else {
+            dangerOverlay.classList.remove('danger-active');
+        }
+    }
+
+    /** ================= 音效系統 (MAX Volume) ================= **/
     let audioCtx;
-    const FREQS = [261.63, 293.66, 329.63, 349.23]; 
+    // 使用更豐富的和弦音階
+    const FREQS = [261.63, 311.13, 392.00, 523.25]; // Cm7
     
     function initAudio() {
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if(audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    function playSound(lane) {
+    function playSound(lane, type) {
         if(!audioCtx) return;
+        
+        // 1. 主音源 (Sawtooth for impact)
         const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        
+        // Perfect 音調高八度
+        let freq = FREQS[lane % 4];
+        if (type === 'PERFECT') freq *= 2;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        // 2. 副音源 (Sine for body - 讓聲音更厚實)
+        const subOsc = audioCtx.createOscillator();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(freq / 2, audioCtx.currentTime); // 低八度
+
+        // Gain Node (音量控制)
         const gain = audioCtx.createGain();
-        osc.frequency.value = FREQS[lane % 4] * (1 + Math.floor(lane/4)); 
-        osc.type = 'triangle';
-        const volume = 0.8; 
-        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        // ★★★ 審查重點：音量全開 ★★★
+        const maxVol = 0.8; // 總合不要超過 1.0 避免爆音
+        gain.gain.setValueAtTime(maxVol, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+        // 連接
         osc.connect(gain);
+        subOsc.connect(gain);
         gain.connect(audioCtx.destination);
+
         osc.start();
+        subOsc.start();
         osc.stop(audioCtx.currentTime + 0.3);
+        subOsc.stop(audioCtx.currentTime + 0.3);
     }
 
-    // --- 粒子特效 ---
-    class Particle {
-        constructor(x, y, color) {
-            this.x = x; this.y = y; this.color = color;
-            this.vx = (Math.random() - 0.5) * 10;
-            this.vy = (Math.random() - 0.5) * 10;
-            this.life = 1;
-        }
-        update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
-        draw(ctx) {
-            ctx.globalAlpha = this.life;
-            ctx.fillStyle = this.color;
-            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
-            ctx.globalAlpha = 1;
-        }
-    }
-
-    // --- 核心邏輯：開始遊戲 ---
+    /** ================= 遊戲邏輯 ================= **/
     function startGame(diff) {
-        // 設定參數
-        const setting = DIFFICULTIES[diff];
-        CONFIG.SPEED_BASE = setting.speed;
-        CONFIG.SPAWN_GAP = setting.gap;
-        resize(); // 應用新速度
-
-        // 重置所有遊戲狀態 (審查重點 3: 確保無殘留)
+        currentDiffSetting = DIFFICULTIES[diff];
+        metrics.speed = metrics.h * CONFIG.BASE_SPEED * currentDiffSetting.speedMod;
+        
+        // 重置狀態
         score = 0;
         combo = 0;
-        life = maxLife;
+        life = MAX_LIFE;
         notes = [];
         particles = [];
-        nextSpawnTime = Date.now(); // 關鍵：重置時間戳
+        nextSpawnTime = Date.now();
         gameState = 'PLAYING';
-
-        // 更新 UI
-        scoreVal.innerText = score;
-        lifeVal.innerText = life;
+        
+        // UI 更新
+        scoreValEl.innerText = '0';
+        renderLifeBar();
         startScreen.style.opacity = 0;
         setTimeout(() => startScreen.style.display = 'none', 300);
-        homeIcon.style.display = 'none'; // 遊戲中隱藏 Home 鍵防誤觸
-
+        
         initAudio();
         loop();
     }
 
-    // --- 核心邏輯：生成音符 ---
-    function spawnNoteLogic(currentTime) {
-        if (currentTime > nextSpawnTime) {
-            const lane = Math.floor(Math.random() * 4);
-            const speedUp = Math.min(200, combo * 5); 
-            const currentGap = Math.max(200, CONFIG.SPAWN_GAP - speedUp);
+    function spawnLogic(now) {
+        if (now > nextSpawnTime) {
+            // 基礎間隔
+            let gap = currentDiffSetting.gap;
+            // 隨著 Combo 加速 (最高快 20%)
+            gap *= (1 - Math.min(combo * 0.002, 0.2));
+
+            // 生成第一個音符
+            const lane1 = Math.floor(Math.random() * 4);
+            createNote(lane1, now);
+
+            // ★ 多押檢定 (Multi-Note Logic) ★
+            if (Math.random() < currentDiffSetting.multiChance) {
+                let lane2 = (lane1 + 1 + Math.floor(Math.random() * 3)) % 4; // 確保不同軌道
+                createNote(lane2, now);
+                
+                // INSANE 模式極小機率出現三押
+                if (currentDiffSetting.multiChance > 0.4 && Math.random() < 0.3) {
+                     let lane3 = (lane1 + 2) % 4;
+                     if (lane3 !== lane2) createNote(lane3, now);
+                }
+            }
             
-            notes.push({
-                lane: lane,
-                spawnTime: currentTime,
-                y: -100, 
-                hit: false,
-                missed: false,
-                color: CONFIG.COLORS[lane]
-            });
-            nextSpawnTime = currentTime + currentGap;
+            nextSpawnTime = now + gap;
         }
     }
 
-    // --- 核心邏輯：物理與 Miss 判定 ---
+    function createNote(lane, time) {
+        notes.push({
+            lane: lane,
+            y: -150, // 從畫面外生成
+            color: CONFIG.COLORS[lane],
+            hit: false,
+            missed: false
+        });
+    }
+
     function updatePhysics() {
         notes.forEach(n => {
-            if(n.hit || n.missed) return;
-            n.y += metrics.speed * 16;
-            
-            // 審查重點 2: Miss 邏輯修正
+            if (n.hit || n.missed) return;
+            n.y += metrics.speed * 16; // *16 正規化 Delta Time
+
+            // Miss 判定
             if (n.y > metrics.h) {
                 n.missed = true;
                 handleMiss(n.lane);
             }
         });
         
-        notes = notes.filter(n => !n.missed && !n.hit);
-        particles = particles.filter(p => p.life > 0);
+        // 清理
+        notes = notes.filter(n => !n.hit && !n.missed);
+        
+        // 粒子物理
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].x += particles[i].vx;
+            particles[i].y += particles[i].vy;
+            particles[i].life -= 0.02;
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+
+        // 光柱淡出
+        for (let i=0; i<4; i++) {
+            if (laneEffects[i] > 0) laneEffects[i] -= 0.1;
+        }
     }
 
     function handleMiss(lane) {
+        life--;
         combo = 0;
+        renderLifeBar();
         updateComboUI();
-        life--; // 扣血
-        lifeVal.innerText = life;
         
-        const x = lane * metrics.laneW + metrics.laneW/2;
-        showFeedback(x, metrics.h - 50, 'MISS', 'miss');
+        // 畫面震動特效
+        gameContainer.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
+        setTimeout(() => gameContainer.style.transform = 'none', 50);
 
-        if (life <= 0) {
-            triggerGameOver();
-        }
+        showFeedback(lane * metrics.laneW + metrics.laneW/2, metrics.h - 50, 'MISS', 'miss');
+
+        if (life <= 0) gameOver();
     }
 
-    function triggerGameOver() {
-        gameState = 'GAMEOVER';
-        screenTitle.innerText = "GAME OVER";
-        screenTitle.style.color = "#ff3b30";
-        screenTitle.style.textShadow = "0 0 20px #ff3b30";
-        
-        diffSelect.style.display = 'none';
-        restartContainer.style.display = 'flex';
-        finalScoreEl.style.display = 'block';
-        finalScoreEl.innerText = `Final Score: ${score}`;
-        
-        startScreen.style.display = 'flex';
-        setTimeout(() => startScreen.style.opacity = 1, 10);
-        homeIcon.style.display = 'block';
-    }
+    function handleHit(lane) {
+        if (gameState !== 'PLAYING') return;
 
-    function resetToMenu() {
-        screenTitle.innerText = "SELECT MODE";
-        screenTitle.style.color = "#fff";
-        screenTitle.style.textShadow = "0 0 20px #0ff";
-        
-        diffSelect.style.display = 'flex';
-        restartContainer.style.display = 'none';
-        finalScoreEl.style.display = 'none';
-        gameState = 'MENU';
-    }
+        // 視覺回饋：軌道亮起
+        laneEffects[lane] = 1.0;
 
-    // --- 核心邏輯：點擊判定 (Hit Detection) ---
-    function checkHit(lane) {
-        if(gameState !== 'PLAYING') return;
-
-        initAudio();
-        playSound(lane); 
-        
-        // 審查重點 1: 判定窗口
-        // 尋找該軌道上「未被擊中」且「在判定範圍內」的第一個音符
-        const target = notes.find(n => n.lane === lane && !n.hit && Math.abs(n.y - metrics.hitY) < 150);
-        const x = lane * metrics.laneW + metrics.laneW/2;
+        // 判定邏輯
+        const hitZone = 150; // 寬容度
+        const target = notes.find(n => n.lane === lane && !n.hit && Math.abs(n.y - metrics.hitY) < hitZone);
         
         if (target) {
+            target.hit = true;
             const dist = Math.abs(target.y - metrics.hitY);
-            
-            // 立即標記，防止重複計分
-            target.hit = true; 
-            
-            if (dist < 40) { 
+            const x = lane * metrics.laneW + metrics.laneW/2;
+            const y = metrics.hitY;
+
+            if (dist < 50) {
+                // Perfect
                 score += 100;
                 combo++;
-                showFeedback(x, metrics.hitY, 'PERFECT', 'perfect');
-                createExplosion(x, metrics.hitY, target.color);
-            } else { 
+                playSound(lane, 'PERFECT');
+                showFeedback(x, y, 'PERFECT', 'perfect');
+                spawnParticles(x, y, target.color, 15);
+            } else {
+                // Good
                 score += 50;
                 combo++;
-                showFeedback(x, metrics.hitY, 'GOOD', 'good');
-                createExplosion(x, metrics.hitY, '#fff');
+                playSound(lane, 'GOOD');
+                showFeedback(x, y, 'GOOD', 'good');
+                spawnParticles(x, y, '#fff', 8);
             }
+            scoreValEl.innerText = score;
+            updateComboUI();
         }
-        // 空揮不扣分 (設計選擇)，但你可以在這裡加入扣分邏輯
-        
-        updateComboUI();
-        scoreVal.innerText = score;
     }
 
-    function createExplosion(x, y, color) {
-        for(let i=0; i<8; i++) particles.push(new Particle(x, y, color));
+    function spawnParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                color: color,
+                life: 1.0,
+                size: Math.random() * 5 + 2
+            });
+        }
     }
 
     function showFeedback(x, y, text, type) {
         const el = document.createElement('div');
         el.className = `feedback ${type}`;
         el.innerText = text;
+        // 隨機旋轉一點點
+        const rot = (Math.random() - 0.5) * 20;
         el.style.left = x + 'px';
         el.style.top = y + 'px';
+        el.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+        
         uiLayer.appendChild(el);
         setTimeout(() => el.remove(), 500);
     }
 
     function updateComboUI() {
-        if(combo > 2) {
+        if (combo > 5) {
             comboBox.style.opacity = 1;
-            comboVal.innerText = combo;
-            comboVal.style.transform = 'scale(1.5)';
-            setTimeout(() => comboVal.style.transform = 'scale(1)', 100);
+            comboBox.style.transform = 'scale(1.2)';
+            comboValEl.innerText = combo;
+            setTimeout(() => comboBox.style.transform = 'scale(1)', 100);
         } else {
             comboBox.style.opacity = 0;
+            comboBox.style.transform = 'scale(0.8)';
         }
     }
 
-    // --- 輸入監聽 ---
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        finalScoreEl.innerText = score;
+        
+        startScreen.style.display = 'flex';
+        mainMenu.style.display = 'none';
+        gameOverUi.style.display = 'flex';
+        
+        setTimeout(() => startScreen.style.opacity = 1, 10);
+        dangerOverlay.classList.remove('danger-active');
+    }
+
+    function resetToMenu() {
+        mainMenu.style.display = 'flex';
+        gameOverUi.style.display = 'none';
+        gameState = 'MENU';
+    }
+
+    /** ================= 輸入監聽 ================= **/
     const keys = ['d', 'f', 'j', 'k'];
+    
     document.addEventListener('keydown', e => {
-        if(e.repeat) return;
+        if (e.repeat) return;
         const idx = keys.indexOf(e.key.toLowerCase());
-        if(idx > -1) checkHit(idx);
+        if (idx > -1) handleHit(idx);
     });
 
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
-        for(let i=0; i<e.touches.length; i++) {
-            const t = e.touches[i];
-            const lane = Math.floor((t.clientX / metrics.w) * 4);
-            if(lane >= 0 && lane < 4) checkHit(lane);
+        for (let i = 0; i < e.touches.length; i++) {
+            const touch = e.touches[i];
+            const lane = Math.floor((touch.clientX / metrics.w) * 4);
+            if (lane >= 0 && lane < 4) handleHit(lane);
         }
-    }, {passive: false});
+    }, { passive: false });
 
-    // --- 主循環 ---
+    /** ================= 遊戲循環 ================= **/
     function loop() {
-        if(gameState !== 'PLAYING') return;
-        
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fillRect(0, 0, metrics.w, metrics.h);
+        if (gameState !== 'PLAYING') return;
 
+        ctx.clearRect(0, 0, metrics.w, metrics.h);
+        
         const now = Date.now();
-        spawnNoteLogic(now);
+        spawnLogic(now);
         updatePhysics();
 
-        // 繪製與渲染 (與之前相同，不再贅述，保持視覺一致)
-        ctx.strokeStyle = '#222';
+        // 1. 繪製軌道光束 (Additive Blending)
+        ctx.globalCompositeOperation = 'lighter';
+        for(let i=0; i<4; i++) {
+            if(laneEffects[i] > 0) {
+                const alpha = laneEffects[i];
+                const grd = ctx.createLinearGradient(0, 0, 0, metrics.h);
+                grd.addColorStop(0, CONFIG.COLORS[i]);
+                grd.addColorStop(1, 'transparent');
+                ctx.fillStyle = grd;
+                ctx.globalAlpha = alpha * 0.4;
+                ctx.fillRect(i * metrics.laneW, 0, metrics.laneW, metrics.h);
+            }
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+
+        // 2. 軌道分隔線
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         for(let i=1; i<4; i++) {
-            ctx.moveTo(i*metrics.laneW, 0); ctx.lineTo(i*metrics.laneW, metrics.h);
+            ctx.moveTo(i*metrics.laneW, 0);
+            ctx.lineTo(i*metrics.laneW, metrics.h);
         }
         ctx.stroke();
 
+        // 3. 判定線 (發光)
+        ctx.shadowBlur = 15; ctx.shadowColor = '#00e5ff';
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+        ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(0, metrics.hitY); ctx.lineTo(metrics.w, metrics.hitY);
         ctx.stroke();
         ctx.shadowBlur = 0;
 
+        // 4. 音符
         notes.forEach(n => {
-            if(n.hit) return;
+            if (n.hit) return;
+            
+            // 霓虹光暈
+            ctx.shadowBlur = 20; ctx.shadowColor = n.color;
             ctx.fillStyle = n.color;
-            ctx.shadowBlur = 15; ctx.shadowColor = n.color;
-            ctx.fillRect(n.lane * metrics.laneW + 5, n.y, metrics.laneW - 10, metrics.h * 0.15);
+            
+            // 方塊主體
+            const pad = 4;
+            const w = metrics.laneW - pad*2;
+            const h = metrics.h * 0.12;
+            ctx.fillRect(n.lane * metrics.laneW + pad, n.y, w, h);
+            
+            // 高光條 (立體感)
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fillRect(n.lane * metrics.laneW + pad, n.y, w, 10);
+            
             ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.fillRect(n.lane * metrics.laneW + 5, n.y, metrics.laneW - 10, 10);
         });
 
-        particles.forEach(p => { p.update(); p.draw(ctx); });
+        // 5. 粒子
+        particles.forEach(p => {
+            p.draw(ctx);
+        });
 
         requestAnimationFrame(loop);
     }
