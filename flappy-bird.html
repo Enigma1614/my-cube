@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>小小 Flappy Bird</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg-color: #70c5ce;
+      --ground-color: #ded895;
+      --grass-color: #5fb24b;
+      --btn-color: #ffb74d;
+      --btn-color-hover: #ffa726;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      user-select: none;
+    }
+
+    header {
+      width: 100%;
+      max-width: 480px;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .btn-back {
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 999px;
+      background: var(--btn-color);
+      border: none;
+      color: #4e342e;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-back:hover {
+      background: var(--btn-color-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    }
+
+    .btn-back:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    #info {
+      color: #fff;
+      margin-bottom: 6px;
+      font-size: 13px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      text-align: center;
+      padding: 0 10px;
+    }
+
+    .theme-bar {
+      width: 100%;
+      max-width: 480px;
+      padding: 4px 12px 10px;
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .theme-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 4px 10px;
+      font-size: 12px;
+      background: rgba(0,0,0,0.2);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: 0.15s ease;
+    }
+
+    .theme-btn span.emoji {
+      font-size: 14px;
+    }
+
+    .theme-btn.active {
+      background: rgba(255,255,255,0.2);
+      box-shadow: 0 0 8px rgba(255,255,255,0.3);
+      border-color: #fff;
+      font-weight: 600;
+    }
+
+    .game-wrapper {
+      width: 100%;
+      max-width: 480px;
+      aspect-ratio: 3 / 4;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: var(--bg-color);
+      border: 2px solid #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+
+    .hint-touch {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #fff;
+      opacity: 0.8;
+    }
+
+    @media (min-width: 768px) {
+      header h1 { font-size: 22px; }
+      #info { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="title">小小 Flappy Bird</h1>
+    <a class="btn-back" href="index.html">⬅ 回大廳</a>
+  </header>
+
+  <div id="info">先選一個主題，再點螢幕讓小鳥飛，別撞到水管！</div>
+
+  <!-- 皮膚選擇列 -->
+  <div class="theme-bar">
+    <button class="theme-btn" data-theme="classic">
+      <span class="emoji">🐤</span><span>經典小鳥</span>
+    </button>
+    <button class="theme-btn" data-theme="tesla">
+      <span class="emoji">⚡</span><span>Tesla Bird</span>
+    </button>
+    <button class="theme-btn" data-theme="dino">
+      <span class="emoji">🦖</span><span>恐龍 Bird</span>
+    </button>
+  </div>
+
+  <div class="game-wrapper">
+    <canvas id="game"></canvas>
+  </div>
+
+  <div class="hint-touch">手機也可以玩：用手指連點螢幕就能控制小鳥</div>
+
+  <!-- 音效 -->
+  <audio id="snd-jump"  src="music/flappy/jump.mp3"  preload="auto"></audio>
+  <audio id="snd-hit"   src="music/flappy/hit.mp3"   preload="auto"></audio>
+  <audio id="snd-score" src="music/flappy/score.mp3" preload="auto"></audio>
+
+
+  <script>
+    // === theme 設定 ===
+    function getInitialTheme() {
+      const stored = localStorage.getItem('flappyTheme');
+      const valid = ['classic', 'tesla', 'dino'];
+      if (stored && valid.includes(stored)) return stored;
+      return 'classic';
+    }
+
+    const themeConfig = {
+      classic: {
+        title: '小小 Flappy Bird',
+        bgColor: '#70c5ce',
+        groundColor: '#ded895',
+        grassColor: '#5fb24b',
+        pipeColor: '#5fb24b',
+        pipeHighlight: '#7ed957',
+        particleScore: '#fff176',
+        particleHit: '#ff8a65'
+      },
+      tesla: {
+        title: 'Tesla Bird',
+        bgColor: '#1a237e',
+        groundColor: '#263238',
+        grassColor: '#37474f',
+        pipeColor: '#00e5ff',
+        pipeHighlight: '#69f0ae',
+        particleScore: '#ffea00',
+        particleHit: '#ff5252'
+      },
+      dino: {
+        title: '恐龍 Bird',
+        bgColor: '#4e342e',
+        groundColor: '#6d4c41',
+        grassColor: '#8bc34a',
+        pipeColor: '#8bc34a',
+        pipeHighlight: '#cddc39',
+        particleScore: '#ffeb3b',
+        particleHit: '#ff7043'
+      }
+    };
+
+    let theme = getInitialTheme();
+    let currentTheme = themeConfig[theme];
+
+    function applyTheme(t) {
+      theme = t;
+      currentTheme = themeConfig[theme] || themeConfig.classic;
+      document.documentElement.style.setProperty('--bg-color', currentTheme.bgColor);
+      document.documentElement.style.setProperty('--ground-color', currentTheme.groundColor);
+      document.documentElement.style.setProperty('--grass-color', currentTheme.grassColor);
+      document.getElementById('title').textContent = currentTheme.title;
+      localStorage.setItem('flappyTheme', theme);
+
+      // 切換 theme 按鈕 active 狀態
+      document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+      });
+    }
+
+    // 初始化主題
+    applyTheme(theme);
+
+    // theme 按鈕事件
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.dataset.theme;
+        applyTheme(t);
+      });
+    });
+
+    // === Canvas & RWD ===
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const sndJump  = document.getElementById('snd-jump');
+    const sndHit   = document.getElementById('snd-hit');
+    const sndScore = document.getElementById('snd-score');
+
+    const LOGIC_WIDTH  = 400;
+    const LOGIC_HEIGHT = 600;
+
+    function resizeCanvas() {
+      const wrapper = document.querySelector('.game-wrapper');
+      const rect = wrapper.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.setTransform(
+        canvas.width / LOGIC_WIDTH,
+        0,
+        0,
+        canvas.height / LOGIC_HEIGHT,
+        0,
+        0
+      );
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // === 遊戲參數 ===
+    const GRAVITY = 0.4;
+    const JUMP_FORCE = -7.2;
+    const PIPE_SPEED = 2.4;
+    const PIPE_GAP = 160;
+    const PIPE_INTERVAL = 1600;
+    const PIPE_WIDTH = 60;
+
+    const bird = {
+      x: 80,
+      y: LOGIC_HEIGHT / 2,
+      r: 16,
+      vy: 0
+    };
+
+    let pipes = [];
+    let score = 0;
+    let bestScore = 0;
+    let started = false;
+    let gameOver = false;
+    let lastPipeTime = 0;
+    const particles = [];
+
+    function spawnParticles(x, y, color, count = 12) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          life: 600,
+          color
+        });
+      }
+    }
+
+    function resetGame() {
+      bird.y = LOGIC_HEIGHT / 2;
+      bird.vy = 0;
+      pipes = [];
+      particles.length = 0;
+      score = 0;
+      started = false;
+      gameOver = false;
+      lastPipeTime = 0;
+    }
+
+    function spawnPipe() {
+      const minTop = 50;
+      const maxTop = LOGIC_HEIGHT - PIPE_GAP - 120;
+      const topHeight = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
+
+      pipes.push({
+        x: LOGIC_WIDTH + 20,
+        topHeight,
+        scored: false
+      });
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = currentTheme.bgColor;
+      ctx.fillRect(0, 0, LOGIC_WIDTH, LOGIC_HEIGHT);
+
+      ctx.fillStyle = currentTheme.groundColor;
+      ctx.fillRect(0, LOGIC_HEIGHT - 80, LOGIC_WIDTH, 80);
+
+      ctx.fillStyle = currentTheme.grassColor;
+      ctx.fillRect(0, LOGIC_HEIGHT - 90, LOGIC_WIDTH, 10);
+
+      if (theme === 'classic') {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.ellipse(70, 80, 30, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(250, 60, 35, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (theme === 'tesla') {
+        ctx.strokeStyle = '#e1f5fe';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+          const sx = 60 + i * 120;
+          ctx.beginPath();
+          ctx.moveTo(sx, 50);
+          ctx.lineTo(sx + 15, 70);
+          ctx.lineTo(sx - 5, 80);
+          ctx.lineTo(sx + 10, 100);
+          ctx.stroke();
+        }
+      } else if (theme === 'dino') {
+        ctx.fillStyle = '#3e2723';
+        ctx.beginPath();
+        ctx.arc(60, 70, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffcc80';
+        ctx.beginPath();
+        ctx.arc(250, 55, 18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBird() {
+      ctx.save();
+      const angle = Math.max(Math.min(bird.vy * 0.08, 0.6), -0.6);
+      ctx.translate(bird.x, bird.y);
+      ctx.rotate(angle);
+
+      if (theme === 'tesla') {
+        ctx.beginPath();
+        ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#eceff1';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.ellipse(-4, 4, 10, 6, -0.3, 0, Math.PI * 2);
+        ctx.fillStyle = '#90caf9';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.arc(6, -5, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.closePath();
+        ctx.beginPath();
+        ctx.arc(7, -5, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(20, 0);
+        ctx.strokeStyle = '#ffea00';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+      } else if (theme === 'dino') {
+        ctx.beginPath();
+        ctx.arc(0, 0, bird.r + 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#8bc34a';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.fillStyle = '#7cb342';
+        ctx.beginPath();
+        ctx.arc(-6, -4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.fillStyle = '#2e7d32';
+        ctx.beginPath();
+        ctx.arc(6, -4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, -6, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.closePath();
+        ctx.beginPath();
+        ctx.arc(1, -6, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.strokeStyle = '#33691e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-4, 6);
+        ctx.lineTo(0, 10);
+        ctx.lineTo(4, 6);
+        ctx.stroke();
+        ctx.closePath();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffeb3b';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.ellipse(-4, 4, 10, 6, -0.3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffe082';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.arc(6, -5, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.closePath();
+        ctx.beginPath();
+        ctx.arc(7, -5, 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+        ctx.closePath();
+
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(18, 4);
+        ctx.lineTo(10, 8);
+        ctx.fillStyle = '#ff9800';
+        ctx.fill();
+        ctx.closePath();
+      }
+
+      ctx.restore();
+    }
+
+    function drawPipes() {
+      ctx.strokeStyle = '#3e7a30';
+      ctx.lineWidth = 2;
+
+      pipes.forEach(pipe => {
+        const x = pipe.x;
+        ctx.fillStyle = currentTheme.pipeColor;
+
+        ctx.beginPath();
+        ctx.rect(x, 0, PIPE_WIDTH, pipe.topHeight);
+        ctx.fill();
+        ctx.stroke();
+        ctx.closePath();
+
+        const bottomY = pipe.topHeight + PIPE_GAP;
+        ctx.beginPath();
+        ctx.rect(x, bottomY, PIPE_WIDTH, LOGIC_HEIGHT - bottomY - 80);
+        ctx.fill();
+        ctx.stroke();
+        ctx.closePath();
+
+        ctx.fillStyle = currentTheme.pipeHighlight;
+        ctx.fillRect(x + 4, 0, 8, pipe.topHeight);
+        ctx.fillRect(x + 4, bottomY, 8, LOGIC_HEIGHT - bottomY - 80);
+      });
+    }
+
+    function drawParticles(delta) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= delta;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.02;
+
+        ctx.globalAlpha = Math.max(p.life / 600, 0);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.closePath();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+
+      ctx.font = '28px Arial';
+      ctx.fillText(score, LOGIC_WIDTH / 2, 60);
+
+      ctx.font = '14px Arial';
+      ctx.fillText('最高分：' + bestScore, LOGIC_WIDTH / 2, 85);
+
+      if (!started && !gameOver) {
+        ctx.font = '18px Arial';
+        ctx.fillText('點螢幕或按空白鍵開始', LOGIC_WIDTH / 2, LOGIC_HEIGHT / 2 - 20);
+      }
+
+      if (gameOver) {
+        ctx.font = '26px Arial';
+        ctx.fillText('遊戲結束', LOGIC_WIDTH / 2, LOGIC_HEIGHT / 2 - 30);
+        ctx.font = '18px Arial';
+        ctx.fillText('再點一次重新開始', LOGIC_WIDTH / 2, LOGIC_HEIGHT / 2 + 5);
+      }
+    }
+
+    function update(delta) {
+      if (!started || gameOver) {
+        drawParticles(delta);
+        return;
+      }
+
+      if (performance.now() - lastPipeTime > PIPE_INTERVAL) {
+        spawnPipe();
+        lastPipeTime = performance.now();
+      }
+
+      pipes.forEach(pipe => {
+        pipe.x -= PIPE_SPEED;
+      });
+
+      pipes = pipes.filter(pipe => pipe.x + PIPE_WIDTH > -50);
+
+      bird.vy += GRAVITY;
+      bird.y += bird.vy;
+
+      if (bird.y - bird.r <= 0 || bird.y + bird.r >= LOGIC_HEIGHT - 80) {
+        triggerGameOver();
+      }
+
+      pipes.forEach(pipe => {
+        const inXRange =
+          bird.x + bird.r > pipe.x &&
+          bird.x - bird.r < pipe.x + PIPE_WIDTH;
+
+        const gapTop = pipe.topHeight;
+        const gapBottom = pipe.topHeight + PIPE_GAP;
+
+        const hitTop = bird.y - bird.r < gapTop;
+        const hitBottom = bird.y + bird.r > gapBottom;
+
+        if (inXRange && (hitTop || hitBottom)) {
+          triggerGameOver();
+        }
+
+        if (!pipe.scored && pipe.x + PIPE_WIDTH < bird.x - bird.r) {
+          pipe.scored = true;
+          score++;
+          playSoundSafe(sndScore);
+          spawnParticles(bird.x + 10, bird.y - 10, currentTheme.particleScore);
+          if (score > bestScore) bestScore = score;
+        }
+      });
+
+      drawParticles(delta);
+    }
+
+    function triggerGameOver() {
+      if (gameOver) return;
+      gameOver = true;
+      playSoundSafe(sndHit);
+      spawnParticles(bird.x, bird.y, currentTheme.particleHit, 18);
+    }
+
+    function jump() {
+      if (!started) {
+        started = true;
+        lastPipeTime = performance.now();
+      }
+      if (gameOver) {
+        resetGame();
+        return;
+      }
+      bird.vy = JUMP_FORCE;
+      playSoundSafe(sndJump);
+    }
+
+    function playSoundSafe(audioEl) {
+      if (!audioEl) return;
+      const p = audioEl.cloneNode();
+      p.volume = 0.8;
+      p.play().catch(() => {});
+    }
+
+    canvas.addEventListener('mousedown', () => { jump(); });
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      jump();
+    }, { passive: false });
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        jump();
+      }
+    });
+
+    let lastTime = 0;
+    function loop(timestamp) {
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+
+      drawBackground();
+      update(delta);
+      drawPipes();
+      drawBird();
+      drawScore();
+
+      requestAnimationFrame(loop);
+    }
+
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
