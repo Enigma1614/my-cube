@@ -94,6 +94,30 @@
       background: var(--color-primary); color: var(--color-text-inverse); border-radius: var(--radius-md);
       z-index: 100;
     }
+    .home-btn {
+      position: fixed;
+      top: var(--space-4);
+      left: var(--space-4);
+      z-index: 120;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-height: 44px;
+      padding: 0.5rem 1.1rem;
+      border-radius: var(--radius-full);
+      border: 1px solid color-mix(in srgb, var(--color-text) 18%, transparent);
+      background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+      color: var(--color-text);
+      box-shadow: var(--shadow-sm);
+      text-decoration: none;
+      font-size: var(--text-sm);
+    }
+
+    .home-btn:hover {
+      background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
+      border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+      transform: translateY(-1px);
+    }
     .skip-link:focus { top: var(--space-4); }
     .shell { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: var(--space-6) 0 var(--space-12); }
     .topbar {
@@ -217,6 +241,7 @@
   </style>
 </head>
 <body>
+  <a href="index.html" class="home-btn" aria-label="回首頁">← 回首頁</a>
   <a class="skip-link" href="#main">跳到遊戲內容</a>
   <div class="shell">
     <header class="topbar">
