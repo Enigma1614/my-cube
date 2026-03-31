@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gomoku Master</title>
+  <meta name="description" content="可調難度的 Web 五子棋遊戲，支援人機對戰、悔棋、重新開始與深色模式。" />
+  <link rel="preconnect" href="https://api.fontshare.com" />
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&f[]=cabinet-grotesk@500,700,800&display=swap" rel="stylesheet" />
+  <style>
+    :root, [data-theme="light"] {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+      --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem;
+      --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem;
+      --space-12: 3rem; --space-16: 4rem;
+      --radius-sm: .375rem; --radius-md: .75rem; --radius-lg: 1rem; --radius-xl: 1.5rem; --radius-full: 9999px;
+      --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      --color-bg: #f7f6f2;
+      --color-surface: #f9f8f5;
+      --color-surface-2: #fbfbf9;
+      --color-surface-offset: #edeae5;
+      --color-border: #d4d1ca;
+      --color-divider: #dcd9d5;
+      --color-text: #28251d;
+      --color-text-muted: #6e6b65;
+      --color-text-faint: #a9a59f;
+      --color-text-inverse: #fbfaf6;
+      --color-primary: #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-primary-highlight: #d7e4e2;
+      --color-success: #437a22;
+      --color-warning: #964219;
+      --color-accent: #ab6b21;
+      --shadow-sm: 0 1px 2px rgb(40 37 29 / 0.06);
+      --shadow-md: 0 6px 18px rgb(40 37 29 / 0.08);
+      --shadow-lg: 0 16px 40px rgb(40 37 29 / 0.12);
+      --font-display: 'Cabinet Grotesk', 'Inter', sans-serif;
+      --font-body: 'General Sans', 'Inter', sans-serif;
+    }
+    [data-theme="dark"] {
+      --color-bg: #171614;
+      --color-surface: #1c1b19;
+      --color-surface-2: #201f1d;
+      --color-surface-offset: #2a2825;
+      --color-border: #393836;
+      --color-divider: #2a2927;
+      --color-text: #e6e1d8;
+      --color-text-muted: #b3ada4;
+      --color-text-faint: #7e7a73;
+      --color-text-inverse: #161513;
+      --color-primary: #5aa8b3;
+      --color-primary-hover: #7cbec7;
+      --color-primary-highlight: #233336;
+      --color-success: #8cc36a;
+      --color-warning: #d38b63;
+      --color-accent: #e4aa62;
+      --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.2);
+      --shadow-md: 0 6px 18px rgb(0 0 0 / 0.28);
+      --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.38);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { color-scheme: light dark; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+    body {
+      min-height: 100dvh;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--color-text);
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 32%),
+        linear-gradient(180deg, var(--color-bg), var(--color-surface));
+      line-height: 1.6;
+    }
+    img, canvas, svg { display: block; max-width: 100%; }
+    button, select { font: inherit; color: inherit; }
+    button {
+      cursor: pointer; border: 1px solid transparent; transition:
+      transform var(--transition-interactive),
+      background var(--transition-interactive),
+      border-color var(--transition-interactive),
+      color var(--transition-interactive),
+      box-shadow var(--transition-interactive);
+    }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button:focus-visible, select:focus-visible {
+      outline: 2px solid var(--color-primary); outline-offset: 3px;
+    }
+    .skip-link {
+      position: absolute; left: var(--space-4); top: -100px; padding: var(--space-3) var(--space-4);
+      background: var(--color-primary); color: var(--color-text-inverse); border-radius: var(--radius-md);
+      z-index: 100;
+    }
+    .skip-link:focus { top: var(--space-4); }
+    .shell { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: var(--space-6) 0 var(--space-12); }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    .brand { display: flex; align-items: center; gap: var(--space-3); }
+    .brand svg { width: 42px; height: 42px; color: var(--color-primary); }
+    .brand-text h1 {
+      font-family: var(--font-display); font-size: var(--text-xl); line-height: 1.05; letter-spacing: -0.04em;
+    }
+    .brand-text p { font-size: var(--text-sm); color: var(--color-text-muted); }
+    .theme-toggle, .control-btn, .primary-btn, .secondary-btn {
+      min-height: 44px; border-radius: var(--radius-full); padding: 0 var(--space-4);
+    }
+    .theme-toggle {
+      min-width: 44px; display: inline-grid; place-items: center;
+      background: var(--color-surface-2); border-color: color-mix(in srgb, var(--color-text) 10%, transparent);
+      box-shadow: var(--shadow-sm);
+    }
+    .layout {
+      display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: var(--space-6);
+      align-items: start;
+    }
+    .panel {
+      background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(10px);
+    }
+    .board-panel { padding: var(--space-5); }
+    .sidebar { padding: var(--space-5); display: grid; gap: var(--space-5); }
+    .hero-card {
+      padding: var(--space-5); border-radius: calc(var(--radius-xl) - var(--space-2));
+      background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-2)), var(--color-surface));
+      border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+    }
+    .hero-card p { color: var(--color-text-muted); max-width: 36ch; }
+    .hero-card h2 {
+      font-family: var(--font-display); font-size: clamp(2rem, 1.1rem + 3vw, 3.25rem);
+      line-height: 1.02; margin-bottom: var(--space-3); letter-spacing: -0.04em;
+    }
+    .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+    .stat {
+      padding: var(--space-4); border-radius: var(--radius-lg); background: var(--color-surface-2);
+      border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+    }
+    .stat .label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .12em; color: var(--color-text-muted); }
+    .stat .value { font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+    .controls { display: grid; gap: var(--space-3); }
+    .control-group { display: grid; gap: var(--space-2); }
+    .control-label { font-size: var(--text-sm); font-weight: 600; }
+    .control-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+    select {
+      width: 100%; min-height: 44px; border-radius: var(--radius-md); padding: 0 var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+      background: var(--color-surface-2);
+    }
+    .primary-btn {
+      background: var(--color-primary); color: var(--color-text-inverse); box-shadow: var(--shadow-sm);
+    }
+    .primary-btn:hover { background: var(--color-primary-hover); }
+    .secondary-btn, .control-btn {
+      background: var(--color-surface-2);
+      border-color: color-mix(in srgb, var(--color-text) 10%, transparent);
+    }
+    .legend { display: grid; gap: var(--space-3); }
+    .legend-item { display: flex; align-items: center; gap: var(--space-3); color: var(--color-text-muted); }
+    .stone-preview {
+      width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 0.18);
+      box-shadow: inset 0 2px 5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.16);
+    }
+    .stone-black { background: linear-gradient(145deg, #4b4b4b, #0d0d0d); }
+    .stone-white { background: linear-gradient(145deg, #ffffff, #dad8d2); }
+    .canvas-wrap { position: relative; aspect-ratio: 1 / 1; }
+    #board {
+      width: 100%; height: auto; border-radius: calc(var(--radius-xl) - var(--space-2));
+      background: linear-gradient(180deg, #ddb977, #c99855 56%, #b88746);
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), inset 0 -20px 40px rgb(95 52 20 / 0.18);
+      touch-action: manipulation;
+    }
+    .board-overlay {
+      position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+      padding: var(--space-5);
+    }
+    .message {
+      max-width: 32ch; text-align: center; padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg);
+      background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+      box-shadow: var(--shadow-md); opacity: 0; transform: translateY(10px);
+      transition: opacity var(--transition-interactive), transform var(--transition-interactive);
+    }
+    .message.show { opacity: 1; transform: translateY(0); }
+    .section-title { font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-2); }
+    .muted { color: var(--color-text-muted); }
+    .tips { display: grid; gap: var(--space-3); }
+    .tips li {
+      list-style: none; padding-left: var(--space-4); position: relative; color: var(--color-text-muted);
+    }
+    .tips li::before {
+      content: ''; position: absolute; left: 0; top: .7em; width: 8px; height: 8px; border-radius: 50%; background: var(--color-accent);
+    }
+    .footer-note { font-size: var(--text-sm); color: var(--color-text-muted); }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 1rem, 1180px); padding-top: var(--space-4); }
+      .topbar { align-items: start; }
+      .brand-text h1 { font-size: 1.8rem; }
+      .status-grid { grid-template-columns: 1fr; }
+      .board-panel, .sidebar { padding: var(--space-4); }
+      .control-row { display: grid; grid-template-columns: 1fr 1fr; }
+      .control-row button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到遊戲內容</a>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand" aria-label="Gomoku Master">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+          <rect x="10" y="10" width="44" height="44" rx="12"></rect>
+          <path d="M22 22h20M22 32h20M22 42h20M22 22v20M32 22v20M42 22v20"></path>
+          <circle cx="22" cy="22" r="4" fill="currentColor" stroke="none"></circle>
+          <circle cx="42" cy="42" r="4" fill="currentColor" opacity=".35" stroke="none"></circle>
+        </svg>
+        <div class="brand-text">
+          <h1>Gomoku Master</h1>
+          <p>可調難度、立即可部署到 GitHub Pages 的五子棋。</p>
+        </div>
+      </div>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="切換深色模式"></button>
+    </header>
+
+    <main id="main" class="layout">
+      <section class="panel board-panel" aria-labelledby="board-title">
+        <div class="hero-card">
+          <h2 id="board-title">和電腦來一盤五子棋</h2>
+          <p>你執黑先手。AI 難度可從入門到專家切換，專家模式會更積極堵截與建立連珠威脅。</p>
+        </div>
+
+        <div style="height: var(--space-5)"></div>
+
+        <div class="status-grid" aria-label="遊戲狀態">
+          <article class="stat">
+            <div class="label">目前回合</div>
+            <div class="value" id="turnLabel">玩家</div>
+          </article>
+          <article class="stat">
+            <div class="label">局面評估</div>
+            <div class="value" id="evaluationLabel">開局中</div>
+          </article>
+          <article class="stat">
+            <div class="label">總步數</div>
+            <div class="value" id="moveCountLabel">0</div>
+          </article>
+        </div>
+
+        <div style="height: var(--space-5)"></div>
+
+        <div class="canvas-wrap">
+          <canvas id="board" width="900" height="900" aria-label="15x15 五子棋棋盤" role="img"></canvas>
+          <div class="board-overlay" aria-live="polite">
+            <div class="message" id="messageBox"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel sidebar" aria-label="遊戲控制">
+        <section class="controls">
+          <div>
+            <p class="section-title">控制面板</p>
+            <p class="muted">變更難度、重新開始，或悔棋回到上一步。</p>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" for="difficulty">AI 難度</label>
+            <select id="difficulty">
+              <option value="easy">簡單：偏隨機，容易失誤</option>
+              <option value="medium" selected>普通：兼顧進攻與防守</option>
+              <option value="hard">困難：優先堵威脅並找連線</option>
+              <option value="expert">專家：更深評估與候選排序</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <span class="control-label">操作</span>
+            <div class="control-row">
+              <button class="primary-btn" id="restartBtn" type="button">重新開始</button>
+              <button class="secondary-btn" id="undoBtn" type="button">悔棋</button>
+            </div>
+            <div class="control-row">
+              <button class="control-btn" id="hintBtn" type="button">顯示建議點</button>
+              <button class="control-btn" id="swapThemeBtn" type="button">切換主題</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="legend">
+          <p class="section-title">棋子說明</p>
+          <div class="legend-item"><span class="stone-preview stone-black" aria-hidden="true"></span><span>玩家：黑子，先手。</span></div>
+          <div class="legend-item"><span class="stone-preview stone-white" aria-hidden="true"></span><span>電腦：白子，後手。</span></div>
+        </section>
+
+        <section>
+          <p class="section-title">玩法提示</p>
+          <ul class="tips">
+            <li>先搶中央附近的位置，能更快建立雙向進攻路線。</li>
+            <li>看到對手連成四時要優先防守，否則下一手可能直接結束。</li>
+            <li>專家模式會集中搜尋熱區，因此中後盤的堵點更準確。</li>
+          </ul>
+        </section>
+
+        <section>
+          <p class="section-title">部署說明</p>
+          <p class="footer-note">把整個資料夾推到 GitHub，並啟用 GitHub Pages，即可直接公開遊玩。</p>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const BOARD_SIZE = 15;
+    const EMPTY = 0;
+    const HUMAN = 1;
+    const AI = 2;
+    const DIRECTIONS = [[1,0],[0,1],[1,1],[1,-1]];
+    const difficultyProfiles = {
+      easy:   { radius: 1, randomness: 0.42, defenseBias: 0.86, attackBias: 0.84, lookahead: 0.35 },
+      medium: { radius: 2, randomness: 0.18, defenseBias: 1.00, attackBias: 1.00, lookahead: 0.65 },
+      hard:   { radius: 2, randomness: 0.08, defenseBias: 1.16, attackBias: 1.14, lookahead: 0.9 },
+      expert: { radius: 3, randomness: 0.02, defenseBias: 1.28, attackBias: 1.22, lookahead: 1.1 }
+    };
+
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const difficultySelect = document.getElementById('difficulty');
+    const turnLabel = document.getElementById('turnLabel');
+    const evaluationLabel = document.getElementById('evaluationLabel');
+    const moveCountLabel = document.getElementById('moveCountLabel');
+    const restartBtn = document.getElementById('restartBtn');
+    const undoBtn = document.getElementById('undoBtn');
+    const hintBtn = document.getElementById('hintBtn');
+    const themeToggle = document.querySelector('[data-theme-toggle]');
+    const swapThemeBtn = document.getElementById('swapThemeBtn');
+    const messageBox = document.getElementById('messageBox');
+
+    let board = createBoard();
+    let currentPlayer = HUMAN;
+    let winner = null;
+    let moveHistory = [];
+    let showHint = false;
+    let hintMove = null;
+    let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+
+    function createBoard() {
+      return Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY));
+    }
+
+    function resetGame(message = '新局開始，你先手。') {
+      board = createBoard();
+      currentPlayer = HUMAN;
+      winner = null;
+      moveHistory = [];
+      showHint = false;
+      hintMove = null;
+      setMessage(message);
+      updateStatus();
+      drawBoard();
+    }
+
+    function setTheme(nextTheme) {
+      theme = nextTheme;
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.innerHTML = theme === 'dark'
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+      themeToggle.setAttribute('aria-label', theme === 'dark' ? '切換淺色模式' : '切換深色模式');
+      drawBoard();
+    }
+
+    function setMessage(text) {
+      messageBox.textContent = text;
+      messageBox.classList.add('show');
+      clearTimeout(setMessage.timer);
+      setMessage.timer = setTimeout(() => messageBox.classList.remove('show'), 2200);
+    }
+
+    function boardMetrics() {
+      const size = canvas.width;
+      const padding = size * 0.08;
+      const cell = (size - padding * 2) / (BOARD_SIZE - 1);
+      return { size, padding, cell };
+    }
+
+    function drawBoard() {
+      const { size, padding, cell } = boardMetrics();
+      ctx.clearRect(0, 0, size, size);
+      const dark = theme === 'dark';
+
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        const pos = padding + i * cell;
+        ctx.strokeStyle = dark ? 'rgba(58, 42, 24, 0.75)' : 'rgba(101, 63, 26, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(padding, pos); ctx.lineTo(size - padding, pos); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pos, padding); ctx.lineTo(pos, size - padding); ctx.stroke();
+      }
+
+      const starPoints = [3, 7, 11];
+      ctx.fillStyle = dark ? 'rgba(47, 28, 12, 0.85)' : 'rgba(96, 54, 20, 0.55)';
+      for (const y of starPoints) {
+        for (const x of starPoints) {
+          const cx = padding + x * cell;
+          const cy = padding + y * cell;
+          ctx.beginPath(); ctx.arc(cx, cy, cell * 0.12, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        for (let x = 0; x < BOARD_SIZE; x++) {
+          const stone = board[y][x];
+          if (stone === EMPTY) continue;
+          drawStone(x, y, stone, cell, padding);
+        }
+      }
+
+      if (moveHistory.length) {
+        const last = moveHistory[moveHistory.length - 1];
+        const cx = padding + last.x * cell;
+        const cy = padding + last.y * cell;
+        ctx.strokeStyle = last.player === HUMAN ? '#f5f0e6' : '#0b3f43';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.rect(cx - cell * 0.16, cy - cell * 0.16, cell * 0.32, cell * 0.32);
+        ctx.stroke();
+      }
+
+      if (showHint && hintMove && !winner && currentPlayer === HUMAN) {
+        const cx = padding + hintMove.x * cell;
+        const cy = padding + hintMove.y * cell;
+        ctx.strokeStyle = '#d14c2f';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, cell * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    function drawStone(x, y, player, cell, padding) {
+      const cx = padding + x * cell;
+      const cy = padding + y * cell;
+      const radius = cell * 0.38;
+      const gradient = ctx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.4, radius * 0.18, cx, cy, radius);
+      if (player === HUMAN) {
+        gradient.addColorStop(0, '#5f5f5f');
+        gradient.addColorStop(0.45, '#252525');
+        gradient.addColorStop(1, '#090909');
+      } else {
+        gradient.addColorStop(0, '#ffffff');
+        gradient.addColorStop(0.55, '#ede8df');
+        gradient.addColorStop(1, '#c8c2b7');
+      }
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = player === HUMAN ? 'rgba(255,255,255,0.08)' : 'rgba(98,86,74,0.28)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    function getCellFromPointer(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (clientX - rect.left) * scaleX;
+      const y = (clientY - rect.top) * scaleY;
+      const { padding, cell } = boardMetrics();
+      const gridX = Math.round((x - padding) / cell);
+      const gridY = Math.round((y - padding) / cell);
+      if (gridX < 0 || gridX >= BOARD_SIZE || gridY < 0 || gridY >= BOARD_SIZE) return null;
+      return { x: gridX, y: gridY };
+    }
+
+    function placeStone(x, y, player) {
+      if (board[y][x] !== EMPTY || winner) return false;
+      board[y][x] = player;
+      moveHistory.push({ x, y, player });
+      winner = getWinner(x, y, player);
+      currentPlayer = player === HUMAN ? AI : HUMAN;
+      updateStatus();
+      drawBoard();
+      return true;
+    }
+
+    function undoMove() {
+      if (!moveHistory.length) {
+        setMessage('目前沒有可悔棋的步數。');
+        return;
+      }
+      const steps = currentPlayer === HUMAN && moveHistory.length >= 2 ? 2 : 1;
+      for (let i = 0; i < steps; i++) {
+        const last = moveHistory.pop();
+        if (!last) break;
+        board[last.y][last.x] = EMPTY;
+      }
+      winner = null;
+      currentPlayer = HUMAN;
+      hintMove = null;
+      showHint = false;
+      updateStatus();
+      drawBoard();
+      setMessage('已悔棋。');
+    }
+
+    function getWinner(x, y, player) {
+      for (const [dx, dy] of DIRECTIONS) {
+        const count = 1 + countDirection(x, y, dx, dy, player) + countDirection(x, y, -dx, -dy, player);
+        if (count >= 5) return player;
+      }
+      return board.flat().every(cell => cell !== EMPTY) ? 'draw' : null;
+    }
+
+    function countDirection(x, y, dx, dy, player) {
+      let count = 0;
+      let cx = x + dx;
+      let cy = y + dy;
+      while (cx >= 0 && cx < BOARD_SIZE && cy >= 0 && cy < BOARD_SIZE && board[cy][cx] === player) {
+        count++;
+        cx += dx;
+        cy += dy;
+      }
+      return count;
+    }
+
+    function generateCandidateMoves(radius = 2) {
+      const occupied = [];
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        for (let x = 0; x < BOARD_SIZE; x++) {
+          if (board[y][x] !== EMPTY) occupied.push({ x, y });
+        }
+      }
+      if (!occupied.length) return [{ x: 7, y: 7 }];
+      const set = new Set();
+      for (const { x, y } of occupied) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= BOARD_SIZE || ny >= BOARD_SIZE) continue;
+            if (board[ny][nx] !== EMPTY) continue;
+            set.add(`${nx},${ny}`);
+          }
+        }
+      }
+      return [...set].map(key => {
+        const [x, y] = key.split(',').map(Number);
+        return { x, y };
+      });
+    }
+
+    function evaluateLine(line, player) {
+      let score = 0;
+      const target = player;
+      const enemy = player === HUMAN ? AI : HUMAN;
+      const joined = [enemy, ...line, enemy].join('');
+      const patterns = [
+        { regex: /011110/g, value: 100000 },
+        { regex: /211110|011112/g, value: 15000 },
+        { regex: /01110/g, value: 6000 },
+        { regex: /010110|011010/g, value: 5000 },
+        { regex: /211100|001112|210110|011012/g, value: 1800 },
+        { regex: /00110|01100|01010/g, value: 500 },
+        { regex: /00111200|00211100/g, value: 350 }
+      ];
+      const normalized = joined.replaceAll(String(target), '1').replaceAll(String(enemy), '2').replaceAll('0', '0');
+      for (const { regex, value } of patterns) {
+        const matches = normalized.match(regex);
+        if (matches) score += matches.length * value;
+      }
+      return score;
+    }
+
+    function evaluatePosition(x, y, player) {
+      let total = 0;
+      for (const [dx, dy] of DIRECTIONS) {
+        const line = [];
+        for (let step = -4; step <= 4; step++) {
+          const nx = x + dx * step;
+          const ny = y + dy * step;
+          if (nx < 0 || ny < 0 || nx >= BOARD_SIZE || ny >= BOARD_SIZE) {
+            line.push(player === HUMAN ? AI : HUMAN);
+          } else if (step === 0) {
+            line.push(player);
+          } else {
+            line.push(board[ny][nx]);
+          }
+        }
+        total += evaluateLine(line, player);
+      }
+      const centerBias = 14 - (Math.abs(7 - x) + Math.abs(7 - y));
+      return total + centerBias * 12;
+    }
+
+    function hasImmediateWin(player) {
+      const candidates = generateCandidateMoves(2);
+      for (const move of candidates) {
+        board[move.y][move.x] = player;
+        const won = getWinner(move.x, move.y, player) === player;
+        board[move.y][move.x] = EMPTY;
+        if (won) return move;
+      }
+      return null;
+    }
+
+    function scoreMove(move, profile) {
+      const attack = evaluatePosition(move.x, move.y, AI) * profile.attackBias;
+      const defend = evaluatePosition(move.x, move.y, HUMAN) * profile.defenseBias;
+      board[move.y][move.x] = AI;
+      const followUps = generateCandidateMoves(Math.max(1, profile.radius - 1))
+        .slice(0, 14)
+        .map(next => evaluatePosition(next.x, next.y, AI))
+        .sort((a, b) => b - a);
+      board[move.y][move.x] = EMPTY;
+      const future = (followUps[0] || 0) * profile.lookahead * 0.25;
+      const noise = Math.random() * (attack + defend + 200) * profile.randomness;
+      return attack + defend + future + noise;
+    }
+
+    function chooseBestMove(forHint = false) {
+      const profile = difficultyProfiles[difficultySelect.value];
+      const aiWin = hasImmediateWin(AI);
+      if (aiWin) return aiWin;
+      const humanWin = hasImmediateWin(HUMAN);
+      if (humanWin) return humanWin;
+      const candidates = generateCandidateMoves(profile.radius).map(move => ({ move, score: scoreMove(move, forHint ? difficultyProfiles.hard : profile) }));
+      candidates.sort((a, b) => b.score - a.score);
+      return candidates[0]?.move || { x: 7, y: 7 };
+    }
+
+    function updateStatus() {
+      moveCountLabel.textContent = String(moveHistory.length);
+      if (winner === HUMAN) {
+        turnLabel.textContent = '玩家獲勝';
+        evaluationLabel.textContent = '黑子連五';
+      } else if (winner === AI) {
+        turnLabel.textContent = '電腦獲勝';
+        evaluationLabel.textContent = '白子連五';
+      } else if (winner === 'draw') {
+        turnLabel.textContent = '平手';
+        evaluationLabel.textContent = '棋盤已滿';
+      } else {
+        turnLabel.textContent = currentPlayer === HUMAN ? '玩家' : '電腦';
+        const pressure = estimatePressure();
+        evaluationLabel.textContent = pressure;
+      }
+    }
+
+    function estimatePressure() {
+      const topHuman = generateCandidateMoves(2).map(m => evaluatePosition(m.x, m.y, HUMAN)).sort((a, b) => b - a)[0] || 0;
+      const topAi = generateCandidateMoves(2).map(m => evaluatePosition(m.x, m.y, AI)).sort((a, b) => b - a)[0] || 0;
+      if (topHuman > 8500 || topAi > 8500) return '勝負手';
+      if (topHuman > topAi * 1.25) return '玩家佔優';
+      if (topAi > topHuman * 1.25) return '電腦施壓';
+      return moveHistory.length < 6 ? '開局中' : '局勢均衡';
+    }
+
+    async function aiTurn() {
+      if (winner || currentPlayer !== AI) return;
+      setMessage('電腦思考中…');
+      await new Promise(resolve => setTimeout(resolve, 280));
+      const move = chooseBestMove();
+      placeStone(move.x, move.y, AI);
+      if (winner === AI) {
+        setMessage('電腦獲勝，再試一局。');
+      } else if (winner === 'draw') {
+        setMessage('平手，這是一場拉鋸戰。');
+      } else {
+        setMessage('輪到你落子。');
+      }
+    }
+
+    canvas.addEventListener('click', async (event) => {
+      if (winner || currentPlayer !== HUMAN) return;
+      const cell = getCellFromPointer(event.clientX, event.clientY);
+      if (!cell || board[cell.y][cell.x] !== EMPTY) return;
+      const success = placeStone(cell.x, cell.y, HUMAN);
+      hintMove = null;
+      showHint = false;
+      if (!success) return;
+      if (winner === HUMAN) {
+        setMessage('你贏了，恭喜連成五子。');
+        return;
+      }
+      if (winner === 'draw') {
+        setMessage('平手，棋盤已滿。');
+        return;
+      }
+      await aiTurn();
+    });
+
+    restartBtn.addEventListener('click', () => resetGame('已重新開始。'));
+    undoBtn.addEventListener('click', undoMove);
+    hintBtn.addEventListener('click', () => {
+      if (winner || currentPlayer !== HUMAN) return;
+      hintMove = chooseBestMove(true);
+      showHint = true;
+      drawBoard();
+      setMessage(`建議落點：第 ${hintMove.y + 1} 列，第 ${hintMove.x + 1} 行。`);
+    });
+    difficultySelect.addEventListener('change', () => setMessage(`難度已切換為 ${difficultySelect.options[difficultySelect.selectedIndex].text.split('：')[0]}。`));
+    themeToggle.addEventListener('click', () => setTheme(theme === 'dark' ? 'light' : 'dark'));
+    swapThemeBtn.addEventListener('click', () => setTheme(theme === 'dark' ? 'light' : 'dark'));
+
+    setTheme(theme);
+    resetGame();
+  </script>
+</body>
+</html>
